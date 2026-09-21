@@ -8,20 +8,11 @@ venv/
 # Environment / secrets
 .env
 .env.*
+.envrc
 credentials.json
 *-service-account*.json
+*-key.json
+*.pem
 
 # OS
 .DS_Store
-pipeline-sa-key.json
-.envrc
-
-# Local-only notes (personal/infra details — never published)
-CLAUDE.md
-SETUP_LOG.md
-ACCOUNT_SETUP.md
-
-# Leftovers from the local Airflow attempt (Airflow runs on the VPS)
-logs/
-config/
-plugins/
