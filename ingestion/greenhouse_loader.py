@@ -42,8 +42,8 @@ def transform(job: dict, landed_at: datetime) -> dict:
     transformed_job["published_at"] = job["first_published"]
     transformed_job["deadline_at"] = job["application_deadline"]
     transformed_job["raw"] = json.dumps(job)
-    transformed_job["first_seen_at"] = datetime.datetime.now().isoformat()
-    transformed_job["last_seen_at"] = datetime.datetime.now().isoformat()
+    transformed_job["first_seen_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    transformed_job["last_seen_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     #transformed_job["department"] = job["departments"][0]["name"]
     #transformed_job["office"] = job["offices"][0]["location"]
     transformed_job["department"] = first_field(job["departments"], "name")
