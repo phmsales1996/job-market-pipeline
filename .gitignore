@@ -13,3 +13,4 @@ credentials.json
 
 # OS
 .DS_Store
+pipeline-sa-key.json
