@@ -1,9 +1,12 @@
 # job-market-pipeline
 
-A batch data pipeline that collects public job postings from applicant-tracking systems
-(ATS), lands the raw responses in Google Cloud Storage, and loads them into BigQuery. 
+**Purpose:** help a job seeker find high-quality roles — ones that match what they're
+looking for, such as remote-only, country and language — across company career boards.
 
-**Status:** one source (Greenhouse) works end to end. Airflow orchestration is being built.
+A batch data pipeline that collects public job postings from applicant-tracking systems
+(ATS), lands the raw responses in Google Cloud Storage, and loads them into BigQuery.
+
+**Status:** one source (Greenhouse) runs end to end, scheduled daily on Airflow.
 
 ## Architecture
 
@@ -63,6 +66,9 @@ that Python fills in, because BigQuery query parameters can't be used for table 
 ## Repository layout
 
 ```
+dags/
+  greenhouse_dag.py        Airflow DAG: daily extract -> load, driven by the run's logical date
+  hello.py                 minimal example DAG
 ingestion/
   greenhouse.py            extract: companies registry -> Greenhouse API -> GCS
   greenhouse_loader.py     load: GCS -> staging table -> MERGE into the final table
@@ -102,10 +108,11 @@ python ingestion/greenhouse_loader.py   # load and merge
 ## Roadmap
 
 - [x] Greenhouse, multiple companies, end to end, idempotent
-- [ ] Airflow DAG (self-hosted, Docker) running the daily extract → load → merge
-- [ ] Per-company task fan-out with Airflow dynamic task mapping
-- [ ] More sources: SmartRecruiters, Breezy HR, Deel, search-based discovery
-- [ ] dbt staging and dimensional models, with data-quality tests
+- [x] Airflow DAG (self-hosted, Docker) running the daily extract → load → merge
+- [ ] Hardening: data-quality checks, retries and timeouts, alerting, tests, CI/CD
+- [ ] Scale to hundreds of companies (batched dynamic task mapping)
+- [ ] More sources: Lever and Deel first, then SmartRecruiters, Breezy HR, search-based discovery
+- [ ] dbt: a canonical job model across sources (remote / country / language), marts and tests
 - [ ] Separate dev and prod environments
 - [ ] Serving layer / dashboard
 
@@ -113,9 +120,8 @@ python ingestion/greenhouse_loader.py   # load and merge
 
 ### Known issues
 
-- The run date is computed from the system clock at import time. It should become a
-parameter (Airflow's logical date), so that retries and reruns of a past day read the
-right files.
+- Re-loading an *older* day after a newer one lets the MERGE overwrite newer job data and
+reset `last_seen_at`. Same-day reruns and retries are safe; backfill-safe merging is planned.
 
 
 
