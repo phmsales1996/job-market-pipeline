@@ -5,9 +5,6 @@ import os
 from google.cloud import storage, bigquery
 
 bucket_name = os.environ['NAME_BUCKET']
-#path = "greenhouse/ingest_date=2026-09-19/airbnb/221735.json"
-today = datetime.date.today().isoformat()
-prefix = "greenhouse/ingest_date="+today+"/"
 
 dataset = os.environ['NAME_DATASET']
 
@@ -29,7 +26,7 @@ def fetch_raw_json(path: str) -> bytes:
     saved = blob.download_as_bytes()
     return saved
  
-def transform(job: dict, landed_at: datetime) -> dict:
+def transform(job: dict, landed_at: datetime.datetime) -> dict:
     transformed_job = {}
     transformed_job["id"] = job["id"]
     transformed_job["title"] = job["title"]
@@ -58,10 +55,10 @@ def load_rows(rows: list) -> None:
     job = client.load_table_from_json(rows, table_id, job_config=job_config)
     return job.result()
 
-def fetch_files():
+def fetch_files(prefix_given: str):
     client = storage.Client()
     bucket = client.bucket(bucket_name)
-    blobs = bucket.list_blobs(prefix=prefix)
+    blobs = bucket.list_blobs(prefix=prefix_given)
     blobs_list = list(blobs)
     for blob in blobs_list:
         print(blob.name)
@@ -72,11 +69,9 @@ def run_merge():
     result = client.query(sql_text.format(dataset=dataset)).result()
     return result
 
-
-
-
-if __name__ == "__main__":
-    files = fetch_files()
+def date_run(date: str):
+    prefix_given = "greenhouse/ingest_date="+date+"/"
+    files = fetch_files(prefix_given)
     jobs_loaded = []
     for file in files:
         j = fetch_raw_json(file.name)
@@ -95,3 +90,8 @@ if __name__ == "__main__":
     print("Data loaded into staging successfully!")
     run_merge()
     print("Data loaded into final table successfully!")
+
+
+if __name__ == "__main__":
+    date_run(datetime.date.today().isoformat())
+    

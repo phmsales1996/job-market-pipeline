@@ -24,10 +24,9 @@ def fetch_greenhouse_raw(slug: str) -> bytes:
         return None
         
 
-def land_raw_json(content: bytes, source: str, slug: str) -> str:
-    today = datetime.date.today().isoformat()
+def land_raw_json(date: str, content: bytes, source: str, slug: str) -> str:
     timestamp = datetime.datetime.now().strftime("%H%M%S")
-    destination_path = f"{source}/ingest_date={today}/{slug}/{timestamp}.json"
+    destination_path = f"{source}/ingest_date={date}/{slug}/{timestamp}.json"
 
     client = storage.Client()
     bucket = client.bucket(bucket_name)
@@ -45,16 +44,21 @@ def fetch_companies() -> list:
         print(row.name)
     return results_list
 
-if __name__ == "__main__":
+def date_run(date: str):
     companies = fetch_companies()
     for company in companies:
         slug = company.external_id
         raw = fetch_greenhouse_raw(slug)
         if raw != None:
             print(f"Fetched {len(raw)} bytes")
-            path = land_raw_json(raw, source="greenhouse", slug=slug)
+            path = land_raw_json(date, raw, source="greenhouse", slug=slug)
             print(f"Landed to gs://{bucket_name}/{path}")
         else:
             print("Error occured")
+
+
+if __name__ == "__main__":
+    date_run(datetime.date.today().isoformat())
+    
 
     
