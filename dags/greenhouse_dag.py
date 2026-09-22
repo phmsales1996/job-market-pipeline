@@ -1,7 +1,12 @@
+import pendulum
 from airflow.sdk import dag, task
 from ingestion import greenhouse, greenhouse_loader
 
-@dag(schedule=None)
+@dag(
+    schedule="30 1 * * *", 
+    catchup=False,
+    start_date=pendulum.datetime(2026,9,22,tz="UTC")
+)
 def greenhouse_ingestion():
 
     @task
