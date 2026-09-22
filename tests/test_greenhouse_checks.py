@@ -17,3 +17,14 @@ def test_most_missing():
     counts = {"a": 1}
     with pytest.raises(ValueError):
         greenhouse_checks.evaluate_files(expected, counts, "2026-09-22")
+
+def test_empty_staging():
+    with pytest.raises(ValueError):
+        greenhouse_checks.evaluate_staging(0, 0, 5, "2026-09-22")
+
+def test_mismatch():
+    with pytest.raises(ValueError):
+        greenhouse_checks.evaluate_staging(4051, 15, 5, "2026-09-22")
+    
+def test_healthy_staging():
+    greenhouse_checks.evaluate_staging(4051, 15, 15, "2026-09-22")

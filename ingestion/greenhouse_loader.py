@@ -93,5 +93,7 @@ def date_run(date: str):
 
 
 if __name__ == "__main__":
-    date_run(datetime.date.today().isoformat())
-    
+    import sys
+    import datetime
+    date = sys.argv[1] if len(sys.argv) > 1 else datetime.date.today().isoformat()
+    date_run(date)
