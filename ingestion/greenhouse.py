@@ -1,9 +1,12 @@
 import requests
+import logging
 import datetime
 import os
 #import argparse
 from google.cloud import storage, bigquery
 from ingestion.dates import require_date
+
+logger = logging.getLogger(__name__)
 
 bucket_name = os.environ['NAME_BUCKET']
 dataset = os.environ['NAME_DATASET']
@@ -21,7 +24,7 @@ def fetch_greenhouse_raw(slug: str) -> bytes:
         response.raise_for_status()
         return response.content
     except requests.exceptions.RequestException as e:
-        print(f"An error has occured: {e}. Something is wrong with {slug}")
+        logger.error(f"Fetch failed for {slug}: {e}")
         return None
         
 
@@ -42,7 +45,7 @@ def fetch_companies() -> list:
     results = client.query(query).result()
     results_list = list(results)
     for row in results_list:
-        print(row.name)
+        logger.info(f"Company in registry: {row.name}")
     return results_list
 
 def date_run(date: str):
@@ -56,16 +59,16 @@ def date_run(date: str):
         slug = company.external_id
         raw = fetch_greenhouse_raw(slug)
         if raw is not None:
-            print(f"Fetched {len(raw)} bytes")
+            logger.info(f"Fetched {len(raw)} bytes for {slug}")
             path = land_raw_json(date, raw, source="greenhouse", slug=slug)
-            print(f"Landed to gs://{bucket_name}/{path}")
+            logger.info(f"Landed to gs://{bucket_name}/{path}")
         else:
             failures.append(slug)
-            print(f"Error occured with company {slug}.")
+            logger.error(f"No data landed for {slug} ({date})")
 
-    print(f"Extracted {len(companies) - len(failures)}/{len(companies)} companies for {date}.")
+    logger.info(f"Extracted {len(companies) - len(failures)}/{len(companies)} companies for {date}")
     if failures:
-        print(f"Failed: {', '.join(sorted(failures))}")
+        logger.warning(f"Failed companies for {date}: {', '.join(sorted(failures))}")
     if len(failures) == len(companies):
         raise ValueError(
             f"All {len(companies)} companies failed for {date}: {', '.join(sorted(failures))}"
@@ -76,6 +79,8 @@ def date_run(date: str):
 if __name__ == "__main__":
     import sys
     import datetime
+    # Only when run as a script: Airflow configures logging itself.
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     date = sys.argv[1] if len(sys.argv) > 1 else datetime.date.today().isoformat()
     date_run(date)
     

@@ -1,9 +1,12 @@
 import datetime
+import logging
 import json
 import pathlib
 import os
 from google.cloud import storage, bigquery
 from ingestion.dates import require_date
+
+logger = logging.getLogger(__name__)
 
 bucket_name = os.environ['NAME_BUCKET']
 
@@ -62,7 +65,7 @@ def fetch_files(prefix_given: str):
     blobs = bucket.list_blobs(prefix=prefix_given)
     blobs_list = list(blobs)
     for blob in blobs_list:
-        print(blob.name)
+        logger.info(f"Found landed file: {blob.name}")
     return blobs_list
 
 def run_merge():
@@ -89,13 +92,15 @@ def date_run(date: str):
             jobs_list.append(job_transformed)
         jobs_loaded.extend(jobs_list)
     load_rows(jobs_loaded)
-    print("Data loaded into staging successfully!")
+    logger.info(f"Loaded {len(jobs_loaded)} rows into staging for {date}")
     run_merge()
-    print("Data loaded into final table successfully!")
+    logger.info(f"Merged staging into the final table for {date}")
 
 
 if __name__ == "__main__":
     import sys
     import datetime
+    # Only when run as a script: Airflow configures logging itself.
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     date = sys.argv[1] if len(sys.argv) > 1 else datetime.date.today().isoformat()
     date_run(date)

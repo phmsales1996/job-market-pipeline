@@ -1,7 +1,10 @@
 import os
+import logging
 from google.cloud import storage, bigquery
 from ingestion import greenhouse
 from ingestion.dates import require_date
+
+logger = logging.getLogger(__name__)
 
 bucket_name = os.environ['NAME_BUCKET']
 dataset = os.environ['NAME_DATASET']
@@ -39,13 +42,13 @@ def evaluate_files(expected: set, counts: dict, date: str):
     total = len(expected)
     non_missing = total - len (missing)
     file_count = sum(counts.values())
-    print(f"Files for {date}: {file_count}, {non_missing}/{total} companies.")
+    logger.info(f"Files for {date}: {file_count}, {non_missing}/{total} companies")
     if file_count == 0:
         raise ValueError(f"No files written for date: {date}.")
     elif (len(missing) > total/2):
         raise ValueError(f"{len(missing)} out of {total} companies missing: {", ".join(sorted(missing))}. Date: {date}.")
     elif len(missing) > 0:
-        print(f"Warning: {len(missing)} out of {total} companies missing: {",".join(sorted(missing))}. Date: {date}.")
+        logger.warning(f"{len(missing)} out of {total} companies missing for {date}: {", ".join(sorted(missing))}")
 
 def staging_stats():
     client = bigquery.Client()
@@ -60,7 +63,7 @@ def evaluate_staging(rows_total: int, files_in_staging: int, files_in_gcs: int, 
     elif files_in_staging != files_in_gcs:
         raise ValueError(f"Number of files different! Files in staging: {files_in_staging}. Files in GCS: {files_in_gcs}. Date: {date}.")
     else:
-        print(f"Files in staging: {files_in_staging}. Files in GCS: {files_in_gcs}. Rows total: {rows_total}.")
+        logger.info(f"Staging for {date}: {rows_total} rows from {files_in_staging} files (GCS: {files_in_gcs})")
 
 def final_stats():
     client = bigquery.Client()
@@ -82,7 +85,7 @@ def evaluate_final(rows_total: int, ids_total: int, not_merged: int, date: str):
     elif not_merged > 0:
         raise ValueError(f"{not_merged} IDs never made it to the table for date: {date}.")
     else:
-        print(f"Rows total: {rows_total}. IDs total: {ids_total}. Not Merged: {not_merged}.")
+        logger.info(f"Final table after {date}: {rows_total} rows, {ids_total} distinct ids, {not_merged} not merged")
 
 def run_checks(date: str):
     require_date(date)
@@ -96,5 +99,7 @@ def run_checks(date: str):
 if __name__ == "__main__":
     import sys
     import datetime
+    # Only when run as a script: Airflow configures logging itself.
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     date = sys.argv[1] if len(sys.argv) > 1 else datetime.date.today().isoformat()
     run_checks(date)
