@@ -23,3 +23,21 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -v
+
+  dags:
+    runs-on: ubuntu-latest
+    env:
+      NAME_BUCKET: dummy-bucket
+      NAME_DATASET: dummy-dataset
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Import every DAG file
+        run: python scripts/check_dags.py
