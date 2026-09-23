@@ -9,7 +9,7 @@ from datetime import timedelta
     start_date=pendulum.datetime(2026,9,22,tz="UTC"),
     default_args={
         "retries": 2,
-        "on_failure_callback": alerts.alert_on_failure(),
+        "on_failure_callback": alerts.alert_on_failure,
         "retry_delay": timedelta(minutes=5),
         "execution_timeout": timedelta(minutes=20),
     }
