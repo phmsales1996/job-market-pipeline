@@ -1,1 +1,2 @@
 pytest
+apache-airflow-task-sdk==1.3.2
