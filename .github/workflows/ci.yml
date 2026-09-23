@@ -56,7 +56,8 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          # The trailing newline matters: OpenSSH rejects a key file without it.
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           # The key is restricted server-side to one command (git pull --ff-only),
