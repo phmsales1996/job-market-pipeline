@@ -28,3 +28,19 @@ def test_mismatch():
     
 def test_healthy_staging():
     greenhouse_checks.evaluate_staging(4051, 15, 15, "2026-09-22")
+
+def test_evaluate_final_duplicate_keys():
+    with pytest.raises(ValueError):
+        greenhouse_checks.evaluate_final(1600, 1556, 0, "2026-09-23") 
+
+def test_evaluate_final_ids_never_merged():
+    with pytest.raises(ValueError):
+        greenhouse_checks.evaluate_final(1556, 1556, 12, "2026-09-23")
+
+def test_evaluate_final_healthy():
+    greenhouse_checks.evaluate_final(1556, 1556, 0, "2026-09-23")
+
+def test_c1_boundary():
+    expected = {"a", "b", "c", "d"}
+    counts = {"a": 1, "b": 1}
+    greenhouse_checks.evaluate_files(expected, counts, "2026-09-23")
