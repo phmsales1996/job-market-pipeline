@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Run an Airflow CLI command on the VPS where Airflow actually runs.
+#
+#   ./bin/airflow dags list
+#   ./bin/airflow dags trigger greenhouse_ingestion
+#   ./bin/airflow tasks list greenhouse_ingestion
+#
+# Airflow runs in Docker on a remote host, so each command is wrapped in
+# ssh -> docker compose exec -> airflow. Override the host/dir if needed:
+#   AIRFLOW_SSH_HOST=other-host AIRFLOW_REMOTE_DIR=/srv/airflow ./bin/airflow dags list
+set -euo pipefail
+
+host="${AIRFLOW_SSH_HOST:-jobz-vps}"
+dir="${AIRFLOW_REMOTE_DIR:-/opt/airflow}"
+service="${AIRFLOW_SERVICE:-airflow-scheduler}"
+
+if [ $# -eq 0 ]; then
+    set -- --help
+fi
+
+# printf %q quotes each argument so it survives the trip through ssh's shell.
+remote_args=$(printf '%q ' "$@")
+
+exec ssh -o BatchMode=yes "$host" \
+    "cd ${dir} && docker compose exec -T ${service} airflow ${remote_args}"
