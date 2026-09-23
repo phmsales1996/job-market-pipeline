@@ -3,6 +3,7 @@ import json
 import pathlib
 import os
 from google.cloud import storage, bigquery
+from ingestion.dates import require_date
 
 bucket_name = os.environ['NAME_BUCKET']
 
@@ -70,6 +71,7 @@ def run_merge():
     return result
 
 def date_run(date: str):
+    require_date(date)
     prefix_given = "greenhouse/ingest_date="+date+"/"
     files = fetch_files(prefix_given)
     jobs_loaded = []

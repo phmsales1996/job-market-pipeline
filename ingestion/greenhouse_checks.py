@@ -1,6 +1,7 @@
 import os
 from google.cloud import storage, bigquery
 from ingestion import greenhouse
+from ingestion.dates import require_date
 
 bucket_name = os.environ['NAME_BUCKET']
 dataset = os.environ['NAME_DATASET']
@@ -84,6 +85,7 @@ def evaluate_final(rows_total: int, ids_total: int, not_merged: int, date: str):
         print(f"Rows total: {rows_total}. IDs total: {ids_total}. Not Merged: {not_merged}.")
 
 def run_checks(date: str):
+    require_date(date)
     file_count = check_files(date)
     rows_total, files_in_staging = staging_stats()
     evaluate_staging(rows_total, files_in_staging, file_count, date)
@@ -96,4 +98,3 @@ if __name__ == "__main__":
     import datetime
     date = sys.argv[1] if len(sys.argv) > 1 else datetime.date.today().isoformat()
     run_checks(date)
-    

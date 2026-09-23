@@ -3,6 +3,7 @@ import datetime
 import os
 #import argparse
 from google.cloud import storage, bigquery
+from ingestion.dates import require_date
 
 bucket_name = os.environ['NAME_BUCKET']
 dataset = os.environ['NAME_DATASET']
@@ -45,6 +46,7 @@ def fetch_companies() -> list:
     return results_list
 
 def date_run(date: str):
+    require_date(date)
     companies = fetch_companies()
     for company in companies:
         slug = company.external_id
