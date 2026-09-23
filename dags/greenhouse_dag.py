@@ -1,6 +1,6 @@
 import pendulum
 from airflow.sdk import dag, task
-from ingestion import greenhouse, greenhouse_loader, greenhouse_checks
+from ingestion import greenhouse, greenhouse_loader, greenhouse_checks, alerts
 from datetime import timedelta
 
 @dag(
@@ -9,6 +9,7 @@ from datetime import timedelta
     start_date=pendulum.datetime(2026,9,22,tz="UTC"),
     default_args={
         "retries": 2,
+        "on_failure_callback": alerts.alert_on_failure(),
         "retry_delay": timedelta(minutes=5),
         "execution_timeout": timedelta(minutes=20),
     }
