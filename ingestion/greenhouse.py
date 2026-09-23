@@ -48,15 +48,29 @@ def fetch_companies() -> list:
 def date_run(date: str):
     require_date(date)
     companies = fetch_companies()
+    if not companies:
+        raise ValueError(f"No companies found in the registry for ats='greenhouse' ({date}).")
+
+    failures = []
     for company in companies:
         slug = company.external_id
         raw = fetch_greenhouse_raw(slug)
-        if raw != None:
+        if raw is not None:
             print(f"Fetched {len(raw)} bytes")
             path = land_raw_json(date, raw, source="greenhouse", slug=slug)
             print(f"Landed to gs://{bucket_name}/{path}")
         else:
-            print("Error occured")
+            failures.append(slug)
+            print(f"Error occured with company {slug}.")
+
+    print(f"Extracted {len(companies) - len(failures)}/{len(companies)} companies for {date}.")
+    if failures:
+        print(f"Failed: {', '.join(sorted(failures))}")
+    if len(failures) == len(companies):
+        raise ValueError(
+            f"All {len(companies)} companies failed for {date}: {', '.join(sorted(failures))}"
+        )
+    
 
 
 if __name__ == "__main__":
