@@ -1,11 +1,17 @@
 import pendulum
 from airflow.sdk import dag, task
 from ingestion import greenhouse, greenhouse_loader, greenhouse_checks
+from datetime import timedelta
 
 @dag(
     schedule="30 1 * * *", 
     catchup=False,
-    start_date=pendulum.datetime(2026,9,22,tz="UTC")
+    start_date=pendulum.datetime(2026,9,22,tz="UTC"),
+    default_args={
+        "retries": 2,
+        "retry_delay": timedelta(minutes=5),
+        "execution_timeout": timedelta(minutes=20),
+    }
 )
 def greenhouse_ingestion():
 
@@ -17,7 +23,7 @@ def greenhouse_ingestion():
     def load(ds=None):
         greenhouse_loader.date_run(ds)
 
-    @task
+    @task(retries=0)
     def check(ds=None):
         greenhouse_checks.run_checks(ds)
     
