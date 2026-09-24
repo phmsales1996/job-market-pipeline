@@ -105,6 +105,19 @@ python ingestion/greenhouse_loader.py   # load and merge
 
 
 
+## Operations
+
+- **Schedule:** daily at 01:30 UTC (`greenhouse_ingestion`), `catchup=False`. Tasks:
+  `extract >> load >> check`.
+- **Runs on:** a self-hosted Airflow 3 (Docker, LocalExecutor). Deploys happen automatically
+  when `main` changes, after the tests and DAG-import checks pass.
+- **Dependencies:** Greenhouse's public Job Board API · a GCS bucket for landed files ·
+  BigQuery (`companies` registry in, postings out). No other pipeline depends on this one yet.
+- **Retries:** each task retries twice, 5 minutes apart, with a 20-minute timeout. The check
+  task does not retry - re-running a check on unchanged data only delays the alert.
+- **When it fails:** see [RUNBOOK.md](RUNBOOK.md) - what each failure means, what to check,
+  what to do.
+
 ## Roadmap
 
 - [x] Greenhouse, multiple companies, end to end, idempotent
