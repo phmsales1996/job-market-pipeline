@@ -34,12 +34,13 @@ flowchart LR
 ## Design decisions
 
 - **ELT with an untouched landing zone.** Raw API responses are stored byte for byte,
-before any parsing, so GCS holds the complete history of every response. Anything
-downstream can be rebuilt from it. The landing path is partitioned by date first, then
+before any parsing, so anything downstream can be rebuilt from them. A lifecycle rule
+deletes landed files after **7 days**, which keeps storage inside the free tier and limits
+how far back a rebuild can reach. The landing path is partitioned by date first, then
 company, so the loader can process "everything that landed today" without knowing the
 company list in advance.
-- **The BigQuery raw table is the current state, not the history.** Since GCS already keeps
-every day's files, the table holds one row per job, upserted with `MERGE`.
+- **The BigQuery raw table is the current state, not the history.** The table holds one row
+per job, upserted with `MERGE`, rather than one row per job per run.
 `first_seen_at` is set once and `last_seen_at` is updated on every run. This keeps the
 table from growing by a near-duplicate copy of every open job each day.
 - **Idempotent loads.** BigQuery does not enforce primary keys, so rerunning a naive insert
