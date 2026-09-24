@@ -14,6 +14,11 @@ dataset = os.environ['NAME_DATASET']
 
 table_id = dataset+".greenhouse_postings_incoming"
 
+# Rows per load job. Bigger = fewer, slower load jobs and more memory in flight;
+# smaller = more jobs, each paying a few seconds of startup. ~5k rows is roughly
+# 18 of today's files, around 50 MB of JSON.
+BATCH_ROWS = int(os.environ.get("LOADER_BATCH_ROWS", "5000"))
+
 sql_path = pathlib.Path(__file__).parent.parent / "sql" / "merge_greenhouse_postings.sql"
 sql_text = sql_path.read_text()
 
@@ -51,11 +56,15 @@ def transform(job: dict, landed_at: datetime.datetime) -> dict:
 
     return transformed_job
 
-def load_rows(rows: list) -> None:
+def load_rows(rows: list, write_disposition: str = "WRITE_APPEND") -> None:
     client = bigquery.Client()
-    job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE", autodetect=False)
+    job_config = bigquery.LoadJobConfig(write_disposition=write_disposition, autodetect=False)
     job = client.load_table_from_json(rows, table_id, job_config=job_config)
     return job.result()
+
+def truncate_staging() -> None:
+    client = bigquery.Client()
+    client.query(f"TRUNCATE TABLE `{table_id}`").result()
 
 def fetch_files(prefix_given: str):
     client = storage.Client()
@@ -75,22 +84,31 @@ def date_run(date: str):
     require_date(date)
     prefix_given = "greenhouse/ingest_date="+date+"/"
     files = fetch_files(prefix_given)
-    jobs_loaded = []
+
+    # Rows are accumulated across files and flushed in batches, which bounds two things
+    # at once: memory (a batch plus one file being parsed, not the whole day) and the
+    # number of load jobs (each costs a few seconds of fixed overhead regardless of size).
+    # Staging is emptied once up front, so every load below is an append.
+    truncate_staging()
+    batch = []
+    rows_loaded = 0
+    load_jobs = 0
     for file in files:
-        j = fetch_raw_json(file.name)
-        data = json.loads(j)
-        #print(type(data))
-        #print(data.keys())
-        a = len(data["jobs"])
-        #print(len(data["jobs"]))
-        
-        jobs_list = []
-        for job in data["jobs"]:
-            job_transformed = transform(job, file.time_created)
-            jobs_list.append(job_transformed)
-        jobs_loaded.extend(jobs_list)
-    load_rows(jobs_loaded)
-    logger.info(f"Loaded {len(jobs_loaded)} rows into staging for {date}")
+        data = json.loads(fetch_raw_json(file.name))
+        batch.extend(transform(job, file.time_created) for job in data["jobs"])
+        if len(batch) >= BATCH_ROWS:
+            load_rows(batch, write_disposition="WRITE_APPEND")
+            rows_loaded += len(batch)
+            load_jobs += 1
+            batch = []
+    if batch:
+        load_rows(batch, write_disposition="WRITE_APPEND")
+        rows_loaded += len(batch)
+        load_jobs += 1
+    logger.info(
+        f"Loaded {rows_loaded} rows into staging for {date} "
+        f"from {len(files)} files in {load_jobs} load jobs"
+    )
     run_merge()
     logger.info(f"Merged staging into the final table for {date}")
 
