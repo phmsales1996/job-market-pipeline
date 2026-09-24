@@ -4,12 +4,27 @@ import datetime
 import os
 #import argparse
 from google.cloud import storage, bigquery
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from ingestion.dates import require_date
 
 logger = logging.getLogger(__name__)
 
 bucket_name = os.environ['NAME_BUCKET']
 dataset = os.environ['NAME_DATASET']
+
+# One session for the whole run: it reuses the TCP/TLS connection across companies, and
+# retries the failures worth retrying. 404 (board gone) and 401/403 are not in
+# status_forcelist, so they fail immediately instead of burning three attempts.
+_retry = Retry(
+    total=3,
+    backoff_factor=1,                              # waits ~1s, 2s, 4s between attempts
+    status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods=["GET"],
+    respect_retry_after_header=True,               # a 429 usually says how long to wait
+)
+session = requests.Session()
+session.mount("https://", HTTPAdapter(max_retries=_retry))
 
 """
 parser = argparse.ArgumentParser()
@@ -20,7 +35,7 @@ args = parser.parse_args()
 def fetch_greenhouse_raw(slug: str) -> bytes:
     try:    
         url = f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true"
-        response = requests.get(url, timeout=15)
+        response = session.get(url, timeout=15)
         response.raise_for_status()
         return response.content
     except requests.exceptions.RequestException as e:
