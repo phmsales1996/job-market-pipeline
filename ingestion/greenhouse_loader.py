@@ -15,9 +15,11 @@ dataset = os.environ['NAME_DATASET']
 table_id = dataset+".greenhouse_postings_incoming"
 
 # Rows per load job. Bigger = fewer, slower load jobs and more memory in flight;
-# smaller = more jobs, each paying a few seconds of startup. ~5k rows is roughly
-# 18 of today's files, around 50 MB of JSON.
-BATCH_ROWS = int(os.environ.get("LOADER_BATCH_ROWS", "5000"))
+# smaller = more jobs, each paying a few seconds of startup. Measured at ~170 KiB of
+# peak memory per row in a batch (each row carries `content` and `raw`, and
+# load_table_from_json serialises the batch again before sending), so 2k rows is
+# roughly 350 MiB - comfortable on a host shared with other services.
+BATCH_ROWS = int(os.environ.get("LOADER_BATCH_ROWS", "2000"))
 
 sql_path = pathlib.Path(__file__).parent.parent / "sql" / "merge_greenhouse_postings.sql"
 sql_text = sql_path.read_text()

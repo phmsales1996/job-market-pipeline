@@ -11,7 +11,9 @@ from datetime import timedelta
         "retries": 2,
         "on_failure_callback": alerts.alert_on_failure,
         "retry_delay": timedelta(minutes=5),
-        "execution_timeout": timedelta(minutes=20),
+        # ~3.4s per company to extract and ~5s per file to load, measured at 51
+        # companies: roughly 12 and 17 minutes at 200+. 45 gives headroom for a slow day.
+        "execution_timeout": timedelta(minutes=45),
     }
 )
 def greenhouse_ingestion():
