@@ -40,20 +40,20 @@ def fetch_raw_json(path: str) -> bytes:
 def transform(job: dict, landed_at: datetime.datetime) -> dict:
     transformed_job = {}
     transformed_job["id"] = job["id"]
-    transformed_job["title"] = job["title"]
-    transformed_job["url"] = job["absolute_url"]
-    transformed_job["location"] = job["location"]["name"]
-    transformed_job["company"] = job["company_name"]
-    transformed_job["language"] = job["language"]
-    transformed_job["content"] = job["content"]
-    transformed_job["updated_at"] = job["updated_at"]
-    transformed_job["published_at"] = job["first_published"]
-    transformed_job["deadline_at"] = job["application_deadline"]
+    transformed_job["title"] = job.get("title")
+    transformed_job["url"] = job.get("absolute_url")
+    transformed_job["company"] = job.get("company_name")
+    transformed_job["language"] = job.get("language")
+    transformed_job["content"] = job.get("content")
+    transformed_job["updated_at"] = job.get("updated_at")
+    transformed_job["published_at"] = job.get("first_published")
+    transformed_job["deadline_at"] = job.get("application_deadline")
     transformed_job["raw"] = json.dumps(job)
     transformed_job["first_seen_at"] = landed_at.isoformat()
     transformed_job["last_seen_at"] = landed_at.isoformat()
-    transformed_job["department"] = first_field(job["departments"], "name")
-    transformed_job["office"] = first_field(job["offices"], "location")
+    transformed_job["location"] = (job.get("location") or {}).get("name")
+    transformed_job["department"] = first_field(job.get("departments"), "name")
+    transformed_job["office"] = first_field(job.get("offices"), "location")
     transformed_job['landed_at'] = landed_at.isoformat()
 
     return transformed_job
