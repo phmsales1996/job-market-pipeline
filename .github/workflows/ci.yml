@@ -42,9 +42,25 @@ jobs:
       - name: Import every DAG file
         run: python scripts/check_dags.py
 
+
+  types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Import every DAG file
+        run: python -m mypy ingestion/ dags/ scripts/
+
   deploy:
     # Only after both checks pass, and only for main — not for PRs.
-    needs: [tests, dags]
+    needs: [tests, dags, types]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:

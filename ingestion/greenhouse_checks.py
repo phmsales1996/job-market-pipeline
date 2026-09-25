@@ -1,6 +1,10 @@
 import os
 import logging
-from google.cloud import storage, bigquery
+# google.cloud is a namespace package (storage and bigquery ship as separate
+# distributions into one folder), which mypy cannot follow statically - hence the
+# narrow ignore. Keep the [attr-defined] code: a bare ignore would also hide typos
+# like bigquery.LoadJobConsfig.
+from google.cloud import storage, bigquery  # type: ignore[attr-defined]
 from ingestion import greenhouse
 from ingestion.dates import require_date
 
@@ -15,7 +19,7 @@ def files_per_company(date:str):
     bucket = client.bucket(bucket_name)
     blobs = bucket.list_blobs(prefix=prefix_given)
     blobs_list = list(blobs)
-    result = {}
+    result: dict[str, int] = {}
     for blob in blobs_list:
         slug_new = blob.name.split("/")[2]
         if slug_new in result.keys():

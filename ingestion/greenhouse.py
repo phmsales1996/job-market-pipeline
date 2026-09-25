@@ -3,7 +3,11 @@ import logging
 import datetime
 import os
 #import argparse
-from google.cloud import storage, bigquery
+# google.cloud is a namespace package (storage and bigquery ship as separate
+# distributions into one folder), which mypy cannot follow statically - hence the
+# narrow ignore. Keep the [attr-defined] code: a bare ignore would also hide typos
+# like bigquery.LoadJobConsfig.
+from google.cloud import storage, bigquery  # type: ignore[attr-defined]
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from ingestion.dates import require_date
@@ -32,7 +36,7 @@ parser.add_argument("slug")
 args = parser.parse_args()
 """
 
-def fetch_greenhouse_raw(slug: str) -> bytes:
+def fetch_greenhouse_raw(slug: str) -> bytes | None:
     try:    
         url = f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true"
         response = session.get(url, timeout=15)
