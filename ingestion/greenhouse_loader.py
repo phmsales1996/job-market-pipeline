@@ -4,6 +4,7 @@ import json
 import pathlib
 import os
 from google.cloud import storage, bigquery
+from google.api_core.exceptions import BadRequest
 from ingestion.dates import require_date
 
 logger = logging.getLogger(__name__)
@@ -62,7 +63,13 @@ def load_rows(rows: list, write_disposition: str = "WRITE_APPEND") -> None:
     client = bigquery.Client()
     job_config = bigquery.LoadJobConfig(write_disposition=write_disposition, autodetect=False)
     job = client.load_table_from_json(rows, table_id, job_config=job_config)
-    return job.result()
+    try:
+        return job.result()
+    except BadRequest:
+        # The exception only says "1 row failed"; job.errors names the field and the row.
+        for error in (job.errors or [])[:5]:
+            logger.error(f"Load error: {error}")
+        raise
 
 def truncate_staging() -> None:
     client = bigquery.Client()
@@ -73,8 +80,10 @@ def fetch_files(prefix_given: str):
     bucket = client.bucket(bucket_name)
     blobs = bucket.list_blobs(prefix=prefix_given)
     blobs_list = list(blobs)
-    for blob in blobs_list:
-        logger.info(f"Found landed file: {blob.name}")
+    # One line per file was fine at 5 companies and is 212 lines of noise at scale;
+    # the names are in GCS if anyone needs them.
+    logger.info(f"Found {len(blobs_list)} landed files under {prefix_given}")
+    logger.debug("landed files: " + ", ".join(b.name for b in blobs_list))
     return blobs_list
 
 def run_merge():
@@ -95,7 +104,7 @@ def date_run(date: str):
     batch = []
     rows_loaded = 0
     load_jobs = 0
-    for file in files:
+    for n, file in enumerate(files, 1):
         data = json.loads(fetch_raw_json(file.name))
         batch.extend(transform(job, file.time_created) for job in data["jobs"])
         if len(batch) >= BATCH_ROWS:
@@ -103,6 +112,9 @@ def date_run(date: str):
             rows_loaded += len(batch)
             load_jobs += 1
             batch = []
+        # A 200-file run is otherwise silent for ten minutes: say where it is.
+        if n % 10 == 0 or n == len(files):
+            logger.info(f"{n}/{len(files)} files read, {rows_loaded + len(batch)} rows so far")
     if batch:
         load_rows(batch, write_disposition="WRITE_APPEND")
         rows_loaded += len(batch)
