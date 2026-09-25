@@ -6,7 +6,8 @@ looking for, such as remote-only, country and language — across company career
 A batch data pipeline that collects public job postings from applicant-tracking systems
 (ATS), lands the raw responses in Google Cloud Storage, and loads them into BigQuery.
 
-**Status:** one source (Greenhouse) runs end to end, scheduled daily on Airflow.
+**Status:** one source (Greenhouse) in production - 212 company boards, ~20k open jobs,
+loaded and quality-checked nightly on Airflow. Six further ATS platforms surveyed and mapped.
 
 ## Architecture
 
@@ -123,9 +124,10 @@ python ingestion/greenhouse_loader.py   # load and merge
 
 - [x] Greenhouse, multiple companies, end to end, idempotent
 - [x] Airflow DAG (self-hosted, Docker) running the daily extract → load → merge
-- [ ] Hardening: data-quality checks, retries and timeouts, alerting, tests, CI/CD
-- [ ] Scale to hundreds of companies (batched dynamic task mapping)
-- [ ] More sources: Lever and Deel first, then SmartRecruiters, Breezy HR, search-based discovery
+- [x] Hardening: data-quality checks, retries and timeouts, failure alerts, tests, CI/CD, type checking
+- [x] Scale to hundreds of companies (batched loads; 5 → 212 boards)
+- [ ] More sources: Lever, Ashby, Recruitee, Teamtailor (one request per company), then Workable
+      and SmartRecruiters (a request per job, for unseen ids only)
 - [ ] dbt: a canonical job model across sources (remote / country / language), marts and tests
 - [ ] Separate dev and prod environments
 - [ ] Serving layer / dashboard
@@ -134,8 +136,15 @@ python ingestion/greenhouse_loader.py   # load and merge
 
 ### Known issues
 
-- Re-loading an *older* day after a newer one lets the MERGE overwrite newer job data and
-reset `last_seen_at`. Same-day reruns and retries are safe; backfill-safe merging is planned.
+- **The raw layer is deliberately permissive.** Only what the pipeline itself guarantees is
+`NOT NULL` (id, raw payload, timestamps); everything the source provides may be null, because a
+`NOT NULL` on someone else's API is a promise that eventually breaks. Completeness is reported
+as a fill rate per column on every run instead of blocking the load.
+- **Landed files are deleted after 7 days** by a lifecycle rule, so a rebuild can only reach
+back that far.
+- **Failures are logged, not pushed.** A failure callback writes a structured alert line with
+everything needed to act (and `RUNBOOK.md` says what to do), but nothing sends it anywhere yet;
+in a team this would post to a chat channel.
 
 
 
