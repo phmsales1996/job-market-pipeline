@@ -57,13 +57,35 @@ def staging_stats():
     row = rows[0]
     return row.rows_total, row.files_total
 
-def evaluate_staging(rows_total: int, files_in_staging: int, files_in_gcs: int, date: str):
+def evaluate_staging(rows_total: int, files_in_staging: int, files_expected: int, date: str,
+                     exact: bool = True):
+    """Is staging built from this day's files?
+
+    `files_expected` is how many files should be represented in staging. When the loader
+    tells us (via the DAG), that is the number of files that actually produced rows and the
+    comparison is exact. Run from the command line there is nobody to ask, so `exact=False`
+    compares against the files in GCS and only warns about the difference - files from boards
+    with no open jobs legitimately produce no rows.
+    """
     if rows_total == 0:
-        raise ValueError(f"Staging file is empty for date: {date}.")
-    elif files_in_staging != files_in_gcs:
-        raise ValueError(f"Number of files different! Files in staging: {files_in_staging}. Files in GCS: {files_in_gcs}. Date: {date}.")
-    else:
-        logger.info(f"Staging for {date}: {rows_total} rows from {files_in_staging} files (GCS: {files_in_gcs})")
+        raise ValueError(f"Staging is empty for date: {date}.")
+    if files_in_staging > files_expected:
+        raise ValueError(
+            f"Staging holds more files than exist for {date}: {files_in_staging} in staging, "
+            f"{files_expected} expected. Staging may hold rows from another day."
+        )
+    if exact and files_in_staging != files_expected:
+        raise ValueError(
+            f"Number of files different! Files in staging: {files_in_staging}. "
+            f"Files expected: {files_expected}. Date: {date}."
+        )
+    if files_in_staging < files_expected:
+        logger.warning(
+            f"{files_expected - files_in_staging} of {files_expected} files for {date} produced "
+            f"no rows (boards with no open jobs, or files not loaded)"
+        )
+    logger.info(f"Staging for {date}: {rows_total} rows from {files_in_staging} files "
+                f"(expected {files_expected})")
 
 def final_stats():
     client = bigquery.Client()
@@ -87,14 +109,62 @@ def evaluate_final(rows_total: int, ids_total: int, not_merged: int, date: str):
     else:
         logger.info(f"Final table after {date}: {rows_total} rows, {ids_total} distinct ids, {not_merged} not merged")
 
-def run_checks(date: str):
+def run_checks(date: str, summary: dict | None = None) -> None:
+    """Run C1-C4 and the fill-rate report for one day.
+
+    `summary` is what the loader returned (files read, files with rows, rows loaded). The DAG
+    passes it through XCom; a command-line run has no way to get it, so it defaults to None
+    and the staging check falls back to a looser comparison.
+    """
     require_date(date)
     file_count = check_files(date)
     rows_total, files_in_staging = staging_stats()
-    evaluate_staging(rows_total, files_in_staging, file_count, date)
+    if summary:
+        files_expected = summary["files_with_rows"]
+        exact = True
+        logger.info(f"Loader reported: {summary}")
+    else:
+        files_expected = file_count
+        exact = False
+    evaluate_staging(rows_total, files_in_staging, files_expected, date, exact=exact)
     rows_final, ids_final = final_stats()
     not_merged = not_merged_count()
     evaluate_final(rows_final, ids_final, not_merged, date)
+    null_counts, staging_rows = fetch_null_counts()
+    report_fill_rates(null_counts, staging_rows, date)
+
+def fetch_null_counts():
+    client = bigquery.Client()
+    query = f"""SELECT 
+        COUNTIF (title is NULL) AS title, 
+        COUNTIF (url is NULL) AS url,
+        COUNTIF (location is NULL) AS location,
+        COUNTIF (company is NULL) AS company,
+        COUNTIF (department is NULL) AS department,
+        COUNTIF (office is NULL) AS office,
+        COUNTIF (language is NULL) AS language,
+        COUNTIF (updated_at is NULL) AS updated_at,
+        COUNTIF (published_at is NULL) AS published_at,
+        COUNTIF (deadline_at is NULL) AS deadline_at,
+        COUNT(*) AS n_rows
+    FROM `{dataset}.greenhouse_postings_incoming`
+    """
+    rows = list(client.query(query).result())
+    row = dict(rows[0])
+    n_rows = row.pop("n_rows")
+    return row, n_rows
+
+def report_fill_rates(null_counts: dict, n_rows: int, date: str) -> None:
+    if n_rows == 0:
+        logger.info(f"No rows in staging for {date}, no fill rates.")
+    else:
+        for name, nulls in null_counts.items():
+            filled = n_rows - nulls
+            pct = round(filled/n_rows * 100, 1)
+            logger.info(f"fill rate {date}: {name:<14} {pct}% ({filled}/{n_rows})")
+    
+    
+
 
 if __name__ == "__main__":
     import sys

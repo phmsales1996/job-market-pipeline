@@ -5,6 +5,7 @@ import pathlib
 import os
 from google.cloud import storage, bigquery
 from ingestion.dates import require_date
+from google.api_core.exceptions import BadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -40,20 +41,20 @@ def fetch_raw_json(path: str) -> bytes:
 def transform(job: dict, landed_at: datetime.datetime) -> dict:
     transformed_job = {}
     transformed_job["id"] = job["id"]
-    transformed_job["title"] = job["title"]
-    transformed_job["url"] = job["absolute_url"]
-    transformed_job["location"] = job["location"]["name"]
-    transformed_job["company"] = job["company_name"]
-    transformed_job["language"] = job["language"]
-    transformed_job["content"] = job["content"]
-    transformed_job["updated_at"] = job["updated_at"]
-    transformed_job["published_at"] = job["first_published"]
-    transformed_job["deadline_at"] = job["application_deadline"]
+    transformed_job["title"] = job.get("title")
+    transformed_job["url"] = job.get("absolute_url")
+    transformed_job["company"] = job.get("company_name")
+    transformed_job["language"] = job.get("language")
+    transformed_job["content"] = job.get("content")
+    transformed_job["updated_at"] = job.get("updated_at")
+    transformed_job["published_at"] = job.get("first_published")
+    transformed_job["deadline_at"] = job.get("application_deadline")
     transformed_job["raw"] = json.dumps(job)
     transformed_job["first_seen_at"] = landed_at.isoformat()
     transformed_job["last_seen_at"] = landed_at.isoformat()
-    transformed_job["department"] = first_field(job["departments"], "name")
-    transformed_job["office"] = first_field(job["offices"], "location")
+    transformed_job["location"] = (job.get("location") or {}).get("name")
+    transformed_job["department"] = first_field(job.get("departments"), "name")
+    transformed_job["office"] = first_field(job.get("offices"), "location")
     transformed_job['landed_at'] = landed_at.isoformat()
 
     return transformed_job
@@ -62,7 +63,12 @@ def load_rows(rows: list, write_disposition: str = "WRITE_APPEND") -> None:
     client = bigquery.Client()
     job_config = bigquery.LoadJobConfig(write_disposition=write_disposition, autodetect=False)
     job = client.load_table_from_json(rows, table_id, job_config=job_config)
-    return job.result()
+    try:
+        return job.result()
+    except BadRequest:
+        for error in (job.errors or [])[:5]:
+            logger.error(f"Load error: {error}")
+        raise
 
 def truncate_staging() -> None:
     client = bigquery.Client()
@@ -73,8 +79,10 @@ def fetch_files(prefix_given: str):
     bucket = client.bucket(bucket_name)
     blobs = bucket.list_blobs(prefix=prefix_given)
     blobs_list = list(blobs)
-    for blob in blobs_list:
-        logger.info(f"Found landed file: {blob.name}")
+    # One line per file was fine at 5 companies and is 212 lines of noise at scale;
+    # the names are in GCS if anyone needs them.
+    logger.info(f"Found {len(blobs_list)} landed files under {prefix_given}")
+    logger.debug("landed files: " + ", ".join(b.name for b in blobs_list))
     return blobs_list
 
 def run_merge():
@@ -93,9 +101,11 @@ def date_run(date: str):
     # Staging is emptied once up front, so every load below is an append.
     truncate_staging()
     batch = []
+    files_read = 0
     rows_loaded = 0
     load_jobs = 0
-    for file in files:
+    files_with_rows = 0
+    for n, file in enumerate(files, 1):
         data = json.loads(fetch_raw_json(file.name))
         batch.extend(transform(job, file.time_created) for job in data["jobs"])
         if len(batch) >= BATCH_ROWS:
@@ -103,6 +113,9 @@ def date_run(date: str):
             rows_loaded += len(batch)
             load_jobs += 1
             batch = []
+        # A 200-file run is otherwise silent for ten minutes: say where it is.
+        if n % 10 == 0 or n == len(files):
+            logger.info(f"{n}/{len(files)} files read, {rows_loaded + len(batch)} rows so far")
     if batch:
         load_rows(batch, write_disposition="WRITE_APPEND")
         rows_loaded += len(batch)
