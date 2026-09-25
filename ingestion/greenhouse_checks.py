@@ -95,6 +95,38 @@ def run_checks(date: str):
     rows_final, ids_final = final_stats()
     not_merged = not_merged_count()
     evaluate_final(rows_final, ids_final, not_merged, date)
+    null_counts, staging_rows = fetch_null_counts()
+    report_fill_rates(null_counts, staging_rows, date)
+
+def fetch_null_counts():
+    client = bigquery.Client()
+    query = f"""SELECT 
+        COUNTIF (title is NULL) AS title, 
+        COUNTIF (url is NULL) AS url,
+        COUNTIF (location is NULL) AS location,
+        COUNTIF (company is NULL) AS company,
+        COUNTIF (department is NULL) AS department,
+        COUNTIF (office is NULL) AS office,
+        COUNTIF (language is NULL) AS language,
+        COUNTIF (updated_at is NULL) AS updated_at,
+        COUNTIF (published_at is NULL) AS published_at,
+        COUNTIF (deadline_at is NULL) AS deadline_at,
+        COUNT(*) AS n_rows
+    FROM `{dataset}.greenhouse_postings_incoming`
+    """
+    rows = list(client.query(query).result())
+    row = dict(rows[0])
+    n_rows = row.pop("n_rows")
+    return row, n_rows
+
+def report_fill_rates(null_counts: dict, n_rows: int, date: str) -> None:
+    if n_rows == 0:
+        logger.info(f"No rows in staging for {date}, no fill rates.")
+    else:
+        for name, nulls in null_counts.items():
+            filled = n_rows - nulls
+            pct = round(filled/n_rows * 100, 1)
+            logger.info(f"fill rate {date}: {name:<14} {pct}% ({filled}/{n_rows})")
 
 if __name__ == "__main__":
     import sys
