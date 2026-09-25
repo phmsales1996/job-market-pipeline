@@ -3,9 +3,14 @@ import logging
 import json
 import pathlib
 import os
-from google.cloud import storage, bigquery
+# google.cloud is a namespace package (storage and bigquery ship as separate
+# distributions into one folder), which mypy cannot follow statically - hence the
+# narrow ignore. Keep the [attr-defined] code: a bare ignore would also hide typos
+# like bigquery.LoadJobConsfig.
+from google.cloud import storage, bigquery  # type: ignore[attr-defined]
 from ingestion.dates import require_date
 from google.api_core.exceptions import BadRequest
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +30,7 @@ BATCH_ROWS = int(os.environ.get("LOADER_BATCH_ROWS", "2000"))
 sql_path = pathlib.Path(__file__).parent.parent / "sql" / "merge_greenhouse_postings.sql"
 sql_text = sql_path.read_text()
 
-def first_field(items: list, key: str):
+def first_field(items: list | None, key: str) -> Any:
     if items:
         return items[0][key]
     else:
@@ -64,7 +69,7 @@ def load_rows(rows: list, write_disposition: str = "WRITE_APPEND") -> None:
     job_config = bigquery.LoadJobConfig(write_disposition=write_disposition, autodetect=False)
     job = client.load_table_from_json(rows, table_id, job_config=job_config)
     try:
-        return job.result()
+        job.result()
     except BadRequest:
         for error in (job.errors or [])[:5]:
             logger.error(f"Load error: {error}")
@@ -100,7 +105,7 @@ def date_run(date: str):
     # number of load jobs (each costs a few seconds of fixed overhead regardless of size).
     # Staging is emptied once up front, so every load below is an append.
     truncate_staging()
-    batch = []
+    batch: list[dict] = []
     files_read = 0
     rows_loaded = 0
     load_jobs = 0

@@ -24,6 +24,10 @@ def import_dag_files() -> int:
     failures = 0
     for path in sorted(DAGS.glob("*.py")):
         spec = importlib.util.spec_from_file_location(path.stem, path)
+        if spec is None or spec.loader is None:
+            failures += 1
+            print(f"FAIL {path}: cannot be loaded as a Python module")
+            continue
         module = importlib.util.module_from_spec(spec)
         try:
             spec.loader.exec_module(module)
