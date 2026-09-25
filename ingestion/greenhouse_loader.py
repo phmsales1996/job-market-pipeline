@@ -4,8 +4,8 @@ import json
 import pathlib
 import os
 from google.cloud import storage, bigquery
-from google.api_core.exceptions import BadRequest
 from ingestion.dates import require_date
+from google.api_core.exceptions import BadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,6 @@ def load_rows(rows: list, write_disposition: str = "WRITE_APPEND") -> None:
     try:
         return job.result()
     except BadRequest:
-        # The exception only says "1 row failed"; job.errors names the field and the row.
         for error in (job.errors or [])[:5]:
             logger.error(f"Load error: {error}")
         raise
@@ -102,8 +101,10 @@ def date_run(date: str):
     # Staging is emptied once up front, so every load below is an append.
     truncate_staging()
     batch = []
+    files_read = 0
     rows_loaded = 0
     load_jobs = 0
+    files_with_rows = 0
     for n, file in enumerate(files, 1):
         data = json.loads(fetch_raw_json(file.name))
         batch.extend(transform(job, file.time_created) for job in data["jobs"])

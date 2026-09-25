@@ -24,12 +24,16 @@ def greenhouse_ingestion():
     
     @task
     def load(ds=None):
-        greenhouse_loader.date_run(ds)
+        # Returning a value pushes it to XCom, so the check task can read it.
+        return greenhouse_loader.date_run(ds)
 
     @task(retries=0)
-    def check(ds=None):
-        greenhouse_checks.run_checks(ds)
-    
-    extract() >> load() >> check()
+    def check(load_summary, ds=None):
+        greenhouse_checks.run_checks(ds, summary=load_summary)
+
+    extract_task = extract()
+    load_task = load()
+    extract_task >> load_task        # ordering only: extract passes nothing to load
+    check(load_task)                 # passing the value also creates load -> check
 
 greenhouse_ingestion()
