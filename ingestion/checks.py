@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 bucket_name = os.environ['NAME_BUCKET']
 dataset = os.environ['NAME_DATASET']
 
-def files_per_company(date:str):
-    prefix_given = "greenhouse/ingest_date="+date+"/"
+def files_per_company(source: str, date: str):
+    prefix_given = f"{source}/ingest_date={date}/"
     client = storage.Client()
     bucket = client.bucket(bucket_name)
     blobs = bucket.list_blobs(prefix=prefix_given)
@@ -28,14 +28,14 @@ def files_per_company(date:str):
             result[slug_new] = 1
     return result
 
-def check_files(date: str, known_failed: set | None = None):
-    companies = ats.fetch_companies("greenhouse")
+def check_files(source: str, date: str, known_failed: set | None = None):
+    companies = ats.fetch_companies(source)
     slugs = []
     for company in companies:
         slug = company.external_id
         slugs.append(slug)
     company_slugs = set(slugs)
-    counts = files_per_company(date)
+    counts = files_per_company(source, date)
     #files = set(counts)
     evaluate_files(company_slugs, counts, date, known_failed=known_failed)
     file_count = sum(counts.values())
@@ -78,9 +78,9 @@ def evaluate_files(expected: set, counts: dict, date: str, known_failed: set | N
     elif len(missing) > 0:
         logger.warning(f"{len(missing)} out of {total} companies missing for {date}: {", ".join(sorted(missing))}")
 
-def staging_stats():
+def staging_stats(source: str):
     client = bigquery.Client()
-    query = f"SELECT COUNT(*) AS rows_total, COUNT(DISTINCT landed_at) AS files_total FROM `{dataset}.greenhouse_postings_incoming`"
+    query = f"SELECT COUNT(*) AS rows_total, COUNT(DISTINCT landed_at) AS files_total FROM `{dataset}.{source}_postings_incoming`"
     rows = list(client.query(query).result())
     row = rows[0]
     return row.rows_total, row.files_total
@@ -115,16 +115,16 @@ def evaluate_staging(rows_total: int, files_in_staging: int, files_expected: int
     logger.info(f"Staging for {date}: {rows_total} rows from {files_in_staging} files "
                 f"(expected {files_expected})")
 
-def final_stats():
+def final_stats(source: str):
     client = bigquery.Client()
-    query = f"SELECT COUNT(*) AS rows_total, COUNT(DISTINCT id) AS ids_total FROM `{dataset}.greenhouse_postings`"
+    query = f"SELECT COUNT(*) AS rows_total, COUNT(DISTINCT id) AS ids_total FROM `{dataset}.{source}_postings`"
     rows = list(client.query(query).result())
     row = rows[0]
     return row.rows_total, row.ids_total
 
-def not_merged_count():
+def not_merged_count(source: str):
     client = bigquery.Client()
-    query = f"SELECT COUNT(*) AS not_merged FROM (SELECT DISTINCT id FROM `{dataset}.greenhouse_postings_incoming` EXCEPT DISTINCT SELECT id FROM `{dataset}.greenhouse_postings`)"
+    query = f"SELECT COUNT(*) AS not_merged FROM (SELECT DISTINCT id FROM `{dataset}.{source}_postings_incoming` EXCEPT DISTINCT SELECT id FROM `{dataset}.{source}_postings`)"
     rows = list(client.query(query).result())
     row = rows[0]
     return row.not_merged
@@ -137,7 +137,7 @@ def evaluate_final(rows_total: int, ids_total: int, not_merged: int, date: str):
     else:
         logger.info(f"Final table after {date}: {rows_total} rows, {ids_total} distinct ids, {not_merged} not merged")
 
-def run_checks(date: str, summary: dict | None = None,
+def run_checks(source: str, date: str, summary: dict | None = None,
                extract_summary: dict | None = None) -> None:
     """Run C1-C4 and the fill-rate report for one day.
 
@@ -151,8 +151,8 @@ def run_checks(date: str, summary: dict | None = None,
     if extract_summary:
         known_failed = set(extract_summary["failed_slugs"])
         logger.info(f"Extract reported: {extract_summary}")
-    file_count = check_files(date, known_failed=known_failed)
-    rows_total, files_in_staging = staging_stats()
+    file_count = check_files(source, date, known_failed=known_failed)
+    rows_total, files_in_staging = staging_stats(source)
     if summary:
         files_expected = summary["files_with_rows"]
         exact = True
@@ -161,27 +161,43 @@ def run_checks(date: str, summary: dict | None = None,
         files_expected = file_count
         exact = False
     evaluate_staging(rows_total, files_in_staging, files_expected, date, exact=exact)
-    rows_final, ids_final = final_stats()
-    not_merged = not_merged_count()
+    rows_final, ids_final = final_stats(source)
+    not_merged = not_merged_count(source)
     evaluate_final(rows_final, ids_final, not_merged, date)
-    null_counts, staging_rows = fetch_null_counts()
+    null_counts, staging_rows = fetch_null_counts(source)
     report_fill_rates(null_counts, staging_rows, date)
 
-def fetch_null_counts():
+# Written by the pipeline, never by the source: NOT NULL by construction, so their
+# fill rate is always 100% and reporting it is noise.
+PIPELINE_COLUMNS = {"id", "raw", "first_seen_at", "last_seen_at", "landed_at"}
+
+def fetch_columns(source: str) -> list[str]:
+    """The source-provided columns of a staging table, asked of BigQuery itself.
+
+    Keeping a per-source column list in Python would be a third copy of what the DDL and
+    the transform already say; this one cannot drift.
+    """
     client = bigquery.Client()
-    query = f"""SELECT 
-        COUNTIF (title is NULL) AS title, 
-        COUNTIF (url is NULL) AS url,
-        COUNTIF (location is NULL) AS location,
-        COUNTIF (company is NULL) AS company,
-        COUNTIF (department is NULL) AS department,
-        COUNTIF (office is NULL) AS office,
-        COUNTIF (language is NULL) AS language,
-        COUNTIF (updated_at is NULL) AS updated_at,
-        COUNTIF (published_at is NULL) AS published_at,
-        COUNTIF (deadline_at is NULL) AS deadline_at,
+    query = f"""SELECT column_name
+        FROM `{dataset}.INFORMATION_SCHEMA.COLUMNS`
+        WHERE table_name = @table
+        ORDER BY ordinal_position"""
+    config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("table", "STRING", f"{source}_postings_incoming")
+        ]
+    )
+    rows = client.query(query, job_config=config).result()
+    return [row.column_name for row in rows if row.column_name not in PIPELINE_COLUMNS]
+
+def fetch_null_counts(source: str):
+    client = bigquery.Client()
+    columns = fetch_columns(source)
+    countifs = ",\n        ".join(f"COUNTIF({c} IS NULL) AS {c}" for c in columns)
+    query = f"""SELECT
+        {countifs},
         COUNT(*) AS n_rows
-    FROM `{dataset}.greenhouse_postings_incoming`
+    FROM `{dataset}.{source}_postings_incoming`
     """
     rows = list(client.query(query).result())
     row = dict(rows[0])
@@ -196,6 +212,8 @@ def report_fill_rates(null_counts: dict, n_rows: int, date: str) -> None:
             filled = n_rows - nulls
             pct = round(filled/n_rows * 100, 1)
             logger.info(f"fill rate {date}: {name:<14} {pct}% ({filled}/{n_rows})")
+
+
     
     
 
@@ -205,5 +223,9 @@ if __name__ == "__main__":
     import datetime
     # Only when run as a script: Airflow configures logging itself.
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    date = sys.argv[1] if len(sys.argv) > 1 else datetime.date.today().isoformat()
-    run_checks(date)
+    if len(sys.argv) < 2:
+        print("usage: python -m ingestion.checks <source> [date]")
+        sys.exit(1)
+    date = sys.argv[2] if len(sys.argv) > 2 else datetime.date.today().isoformat()
+    source = sys.argv[1]
+    run_checks(source, date)

@@ -17,5 +17,4 @@ CREATE TABLE `dev_raw.greenhouse_postings_incoming` (
     landed_at TIMESTAMP NOT NULL OPTIONS(description="When the GCS file this row came from was created (the object's time_created). Ties every row back to one landed file: used to deduplicate (newest file wins per id) and by the C2 check to prove staging was rebuilt from this day's files."),
     PRIMARY KEY (id, landed_at) NOT ENFORCED
 )
-PARTITION BY DATE(last_seen_at)
-OPTIONS(description="One row per Greenhouse job posting PER LANDED FILE (so the same id appears once per file that contained it). Load-mechanics staging only: fully replaced (WRITE_TRUNCATE) on every run and then MERGEd into dev_raw.greenhouse_postings. Not the dbt staging layer - unrelated concept, same word.");
+OPTIONS(description="One row per Greenhouse job posting PER LANDED FILE (so the same id appears once per file that contained it). Load-mechanics staging only: fully replaced (WRITE_TRUNCATE) on every run and then MERGEd into dev_raw.greenhouse_postings. Not partitioned: it holds one run's data, is rebuilt from scratch each time and is always scanned whole by the MERGE, so there is nothing for partition pruning to skip. Not the dbt staging layer - unrelated concept, same word.");
