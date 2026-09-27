@@ -1,6 +1,6 @@
 import pendulum
 from airflow.sdk import dag, task
-from ingestion import greenhouse, greenhouse_loader, greenhouse_checks, alerts
+from ingestion import greenhouse, greenhouse_loader, checks, alerts
 from datetime import timedelta
 
 @dag(
@@ -30,7 +30,7 @@ def greenhouse_ingestion():
 
     @task(retries=0)
     def check(load_summary, extract_summary, ds=None):
-        greenhouse_checks.run_checks(ds, summary=load_summary,
+        checks.run_checks("greenhouse", ds, summary=load_summary,
                                      extract_summary=extract_summary)
 
     extract_task = extract()
