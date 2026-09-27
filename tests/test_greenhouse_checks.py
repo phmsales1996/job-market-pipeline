@@ -18,6 +18,25 @@ def test_most_missing():
     with pytest.raises(ValueError):
         greenhouse_checks.evaluate_files(expected, counts, "2026-09-22")
 
+def test_missing_but_extract_said_it_failed():
+    # b's fetch failed, so no file for b is expected: a warning, not a failure.
+    expected = {"a", "b", "c"}
+    counts = {"a": 1, "c": 1}
+    greenhouse_checks.evaluate_files(expected, counts, "2026-09-22", known_failed={"b"})
+
+def test_missing_although_extract_said_it_succeeded():
+    # Nothing failed to fetch, yet b landed no file: always a bug, whatever the count.
+    expected = {"a", "b", "c"}
+    counts = {"a": 1, "c": 1}
+    with pytest.raises(ValueError, match="reported success"):
+        greenhouse_checks.evaluate_files(expected, counts, "2026-09-22", known_failed=set())
+
+def test_one_missing_of_three_without_extract_summary():
+    # The old, uninformed path: one of three missing only warns.
+    expected = {"a", "b", "c"}
+    counts = {"a": 1, "c": 1}
+    greenhouse_checks.evaluate_files(expected, counts, "2026-09-22")
+
 def test_empty_staging():
     with pytest.raises(ValueError):
         greenhouse_checks.evaluate_staging(0, 0, 5, "2026-09-22")

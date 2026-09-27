@@ -24,7 +24,7 @@ from google.cloud import bigquery
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 
-from ingestion.greenhouse import dataset, session  # noqa: E402  (shared retrying session)
+from ingestion.ats import dataset, session  # noqa: E402  (shared retrying session)
 
 logger = logging.getLogger("seed_companies")
 
