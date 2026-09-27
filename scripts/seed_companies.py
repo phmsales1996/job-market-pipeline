@@ -1,17 +1,20 @@
-"""Validate Greenhouse board slugs and seed them into the companies registry.
+"""Validate ATS board slugs and seed them into the companies registry.
 
 A one-off utility, not part of the daily pipeline. Slugs collected elsewhere go
 stale — boards get renamed, closed or moved — so each one is checked against the
-API before it reaches the registry, and the board's own company name is read from
-the response rather than guessed from the slug.
+source's API before it reaches the registry.
 
-    python scripts/seed_companies.py slugs.json               # validate only
-    python scripts/seed_companies.py slugs.json --insert      # validate, then insert
-    python scripts/seed_companies.py slugs.json --insert --limit 50
+    python scripts/seed_companies.py greenhouse slugs.json           # validate only
+    python scripts/seed_companies.py lever slugs.json --insert       # validate, then insert
+    python scripts/seed_companies.py lever slugs.json --insert --limit 50
 
 The input is either a JSON list of slugs, or a dict keyed by ATS (e.g.
-{"greenhouse": [...], "lever": [...]}), in which case the greenhouse list is used.
+{"greenhouse": [...], "lever": [...]}), in which case the chosen source's list is used.
 Inserting is idempotent: slugs already in the registry are skipped.
+
+Each source needs one validator, registered in VALIDATORS below. Greenhouse reports the
+company's real name in its payload; Lever does not, so its name is derived from the slug
+(see name_from_slug) — lossy, and recorded as such in the companies table description.
 """
 
 import argparse
@@ -19,6 +22,7 @@ import json
 import logging
 import pathlib
 import sys
+from collections.abc import Callable
 
 from google.cloud import bigquery
 
@@ -28,39 +32,64 @@ from ingestion.ats import dataset, session  # noqa: E402  (shared retrying sessi
 
 logger = logging.getLogger("seed_companies")
 
-ATS = "greenhouse"
 # Lighter than the extractor's call: the descriptions are what make responses big,
 # and validation only needs to know the board exists and what it is called.
-BOARD_URL = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs"
+GREENHOUSE_URL = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs"
+LEVER_URL = "https://api.lever.co/v0/postings/{slug}?mode=json"
 
 
-def read_slugs(path: str) -> list:
-    data = json.loads(pathlib.Path(path).read_text())
-    slugs = data[ATS] if isinstance(data, dict) else data
-    return sorted(dict.fromkeys(slugs))  # de-duplicate, keep it stable
+def name_from_slug(slug: str) -> str:
+    """'people-ai' -> 'People Ai'. Lossy on purpose: better than nothing, worse than real.
+
+    Used only for sources whose payload carries no company name.
+    """
+    return slug.replace("-", " ").replace("_", " ").title()
 
 
-def check_slug(slug: str):
-    """Return (ok, company_name_or_reason, n_jobs)."""
+def check_greenhouse(slug: str) -> tuple[bool, str, int]:
+    """Return (alive, company_name_or_reason, n_jobs)."""
     try:
-        response = session.get(BOARD_URL.format(slug=slug), timeout=15)
+        response = session.get(GREENHOUSE_URL.format(slug=slug), timeout=15)
         response.raise_for_status()
         jobs = response.json().get("jobs", [])
     except Exception as e:  # noqa: BLE001 - one dead board must not stop the sweep
         return False, str(e).split(" for url")[0], 0
     name = jobs[0].get("company_name") if jobs else None
-    return True, name or slug, len(jobs)
+    return True, name or name_from_slug(slug), len(jobs)
 
 
-def existing_slugs(client: bigquery.Client) -> set:
+def check_lever(slug: str) -> tuple[bool, str, int]:
+    """Same contract as check_greenhouse; the payload is a bare array with no company name."""
+    try:
+        response = session.get(LEVER_URL.format(slug=slug), timeout=15)
+        response.raise_for_status()
+        jobs = response.json()
+    except Exception as e:  # noqa: BLE001
+        return False, str(e).split(" for url")[0], 0
+    return True, name_from_slug(slug), len(jobs)
+
+
+VALIDATORS: dict[str, Callable[[str], tuple[bool, str, int]]] = {
+    "greenhouse": check_greenhouse,
+    "lever": check_lever,
+}
+
+
+def read_slugs(path: str, source: str) -> list:
+    data = json.loads(pathlib.Path(path).read_text())
+    slugs = data[source] if isinstance(data, dict) else data
+    return sorted(dict.fromkeys(slugs))  # de-duplicate, keep it stable
+
+
+def existing_slugs(client: bigquery.Client, source: str) -> set:
     query = f"SELECT external_id FROM `{dataset}.companies` WHERE ats = @ats"
     config = bigquery.QueryJobConfig(
-        query_parameters=[bigquery.ScalarQueryParameter("ats", "STRING", ATS)]
+        query_parameters=[bigquery.ScalarQueryParameter("ats", "STRING", source)]
     )
     return {row.external_id for row in client.query(query, job_config=config).result()}
 
 
-def insert_companies(client: bigquery.Client, rows: list) -> int:
+def insert_companies(client: bigquery.Client, source: str, rows: list) -> int:
     """Insert (name, external_id) pairs that are not in the registry yet."""
     if not rows:
         return 0
@@ -71,7 +100,7 @@ def insert_companies(client: bigquery.Client, rows: list) -> int:
     """
     config = bigquery.QueryJobConfig(
         query_parameters=[
-            bigquery.ScalarQueryParameter("ats", "STRING", ATS),
+            bigquery.ScalarQueryParameter("ats", "STRING", source),
             bigquery.ArrayQueryParameter(
                 "companies",
                 bigquery.StructQueryParameterType(
@@ -95,6 +124,7 @@ def insert_companies(client: bigquery.Client, rows: list) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("source", choices=sorted(VALIDATORS), help="which ATS these slugs are")
     parser.add_argument("slugs_file", help="JSON list of slugs, or {ats: [slugs]}")
     parser.add_argument("--insert", action="store_true", help="write the live ones to the registry")
     parser.add_argument("--limit", type=int, help="only consider the first N new slugs")
@@ -102,12 +132,14 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s | %(message)s")
 
+    check_slug = VALIDATORS[args.source]
     client = bigquery.Client()
-    known = existing_slugs(client)
-    slugs = [s for s in read_slugs(args.slugs_file) if s not in known]
+    known = existing_slugs(client, args.source)
+    slugs = [s for s in read_slugs(args.slugs_file, args.source) if s not in known]
     if args.limit:
         slugs = slugs[: args.limit]
-    logger.info(f"{len(known)} already in the registry; checking {len(slugs)} new slugs")
+    logger.info(f"{args.source}: {len(known)} already in the registry; "
+                f"checking {len(slugs)} new slugs")
 
     live, dead = [], []
     for i, slug in enumerate(slugs, 1):
@@ -125,7 +157,7 @@ def main() -> None:
                     + (" ..." if len(dead) > 20 else ""))
 
     if args.insert:
-        inserted = insert_companies(client, live)
+        inserted = insert_companies(client, args.source, live)
         logger.info(f"inserted {inserted} companies into {dataset}.companies")
     else:
         logger.info("dry run: nothing written (pass --insert to write)")
