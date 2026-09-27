@@ -20,20 +20,24 @@ def greenhouse_ingestion():
 
     @task
     def extract(ds=None):
-        greenhouse.date_run(ds)
-    
+        # Returning a value pushes it to XCom, so the check task can read it.
+        return greenhouse.date_run(ds)
+
     @task
     def load(ds=None):
         # Returning a value pushes it to XCom, so the check task can read it.
         return greenhouse_loader.date_run(ds)
 
     @task(retries=0)
-    def check(load_summary, ds=None):
-        greenhouse_checks.run_checks(ds, summary=load_summary)
+    def check(load_summary, extract_summary, ds=None):
+        greenhouse_checks.run_checks(ds, summary=load_summary,
+                                     extract_summary=extract_summary)
 
     extract_task = extract()
     load_task = load()
-    extract_task >> load_task        # ordering only: extract passes nothing to load
-    check(load_task)                 # passing the value also creates load -> check
+    extract_task >> load_task        # ordering only: load reads GCS, not the summary
+    # Passing the values also creates load -> check and extract -> check. By keyword: two
+    # dicts of similar shape are easy to swap positionally, and nothing would complain.
+    check(load_summary=load_task, extract_summary=extract_task)
 
 greenhouse_ingestion()

@@ -5,7 +5,7 @@ import logging
 # narrow ignore. Keep the [attr-defined] code: a bare ignore would also hide typos
 # like bigquery.LoadJobConsfig.
 from google.cloud import storage, bigquery  # type: ignore[attr-defined]
-from ingestion import greenhouse
+from ingestion import ats
 from ingestion.dates import require_date
 
 logger = logging.getLogger(__name__)
@@ -28,8 +28,8 @@ def files_per_company(date:str):
             result[slug_new] = 1
     return result
 
-def check_files(date: str):
-    companies = greenhouse.fetch_companies()
+def check_files(date: str, known_failed: set | None = None):
+    companies = ats.fetch_companies("greenhouse")
     slugs = []
     for company in companies:
         slug = company.external_id
@@ -37,11 +37,19 @@ def check_files(date: str):
     company_slugs = set(slugs)
     counts = files_per_company(date)
     #files = set(counts)
-    evaluate_files(company_slugs, counts, date)
+    evaluate_files(company_slugs, counts, date, known_failed=known_failed)
     file_count = sum(counts.values())
     return file_count
 
-def evaluate_files(expected: set, counts: dict, date: str):
+def evaluate_files(expected: set, counts: dict, date: str, known_failed: set | None = None):
+    """C1: did every company in the registry land a file?
+
+    `known_failed` is the set of slugs the extract reported it could not fetch. When we have
+    it, a missing file is either *explained* (the fetch failed, and we knew) or *unexplained*
+    (the extract said it landed and the file is not there) - and an unexplained one is always
+    a bug, so it raises whatever the count. Without it every absence is ambiguous, and all we
+    can do is guess at a threshold.
+    """
     missing = expected - set(counts)
     total = len(expected)
     non_missing = total - len (missing)
@@ -49,7 +57,23 @@ def evaluate_files(expected: set, counts: dict, date: str):
     logger.info(f"Files for {date}: {file_count}, {non_missing}/{total} companies")
     if file_count == 0:
         raise ValueError(f"No files written for date: {date}.")
-    elif (len(missing) > total/2):
+
+    if known_failed is not None:
+        unexplained = missing - known_failed
+        explained = missing & known_failed
+        if unexplained:
+            raise ValueError(
+                f"{len(unexplained)} companies landed no file for {date} although the extract "
+                f"reported success: {', '.join(sorted(unexplained))}."
+            )
+        if explained:
+            logger.warning(
+                f"{len(explained)} of {total} companies failed to fetch for {date} "
+                f"(no file expected): {', '.join(sorted(explained))}"
+            )
+        return
+
+    if (len(missing) > total/2):
         raise ValueError(f"{len(missing)} out of {total} companies missing: {", ".join(sorted(missing))}. Date: {date}.")
     elif len(missing) > 0:
         logger.warning(f"{len(missing)} out of {total} companies missing for {date}: {", ".join(sorted(missing))}")
@@ -113,15 +137,21 @@ def evaluate_final(rows_total: int, ids_total: int, not_merged: int, date: str):
     else:
         logger.info(f"Final table after {date}: {rows_total} rows, {ids_total} distinct ids, {not_merged} not merged")
 
-def run_checks(date: str, summary: dict | None = None) -> None:
+def run_checks(date: str, summary: dict | None = None,
+               extract_summary: dict | None = None) -> None:
     """Run C1-C4 and the fill-rate report for one day.
 
-    `summary` is what the loader returned (files read, files with rows, rows loaded). The DAG
-    passes it through XCom; a command-line run has no way to get it, so it defaults to None
-    and the staging check falls back to a looser comparison.
+    `summary` is what the loader returned (files read, files with rows, rows loaded) and
+    `extract_summary` what the extract returned (companies, succeeded, failed_slugs). The DAG
+    passes both through XCom; a command-line run has no way to get them, so they default to
+    None and the checks fall back to looser comparisons.
     """
     require_date(date)
-    file_count = check_files(date)
+    known_failed = None
+    if extract_summary:
+        known_failed = set(extract_summary["failed_slugs"])
+        logger.info(f"Extract reported: {extract_summary}")
+    file_count = check_files(date, known_failed=known_failed)
     rows_total, files_in_staging = staging_stats()
     if summary:
         files_expected = summary["files_with_rows"]
