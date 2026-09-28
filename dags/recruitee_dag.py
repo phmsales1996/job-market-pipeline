@@ -11,7 +11,9 @@ from datetime import timedelta
         "retries": 2,
         "on_failure_callback": alerts.alert_on_failure,
         "retry_delay": timedelta(minutes=5),
-        "execution_timeout": timedelta(minutes=45),
+        # ~1,470 boards, 3.5x Ashby's 424 (which took ~13 min per task). Sized from that,
+        # with room to spare; re-measure after the first full run and tighten.
+        "execution_timeout": timedelta(minutes=120),
     }
 )
 def recruitee_ingestion():
