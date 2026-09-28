@@ -38,6 +38,7 @@ logger = logging.getLogger("seed_companies")
 GREENHOUSE_URL = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs"
 LEVER_URL = "https://api.lever.co/v0/postings/{slug}?mode=json"
 ASHBY_URL = "https://api.ashbyhq.com/posting-api/job-board/{slug}?includeCompensation=true"
+RECRUITEE_URL = "https://{slug}.recruitee.com/api/offers/"
 
 
 def name_from_slug(slug: str) -> str:
@@ -79,11 +80,21 @@ def check_ashby(slug: str) -> tuple[bool, str, int]:
         return False, str(e).split(" for url")[0], 0
     return True, name_from_slug(slug), len(jobs)
 
+def check_recruitee(slug: str) -> tuple[bool, str, int]:
+    try:
+        response = session.get(RECRUITEE_URL.format(slug=slug), timeout=15)
+        response.raise_for_status()
+        jobs = response.json().get("offers", [])
+    except Exception as e:  # noqa: BLE001
+        return False, str(e).split(" for url")[0], 0
+    return True, name_from_slug(slug), len(jobs)
+
 
 VALIDATORS: dict[str, Callable[[str], tuple[bool, str, int]]] = {
     "greenhouse": check_greenhouse,
     "lever": check_lever,
-    "ashby": check_ashby
+    "ashby": check_ashby,
+    "recruitee": check_recruitee
 }
 
 
