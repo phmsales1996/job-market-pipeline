@@ -6,15 +6,15 @@ looking for, such as remote-only, country and language — across company career
 A batch data pipeline that collects public job postings from applicant-tracking systems
 (ATS), lands the raw responses in Google Cloud Storage, and loads them into BigQuery.
 
-**Status:** three sources in production - Greenhouse, Lever and Ashby, ~1,100 registered
-company boards and ~44k open jobs, each loaded and quality-checked nightly by its own Airflow DAG.
-Four further ATS platforms surveyed and mapped.
+**Status:** four sources in production - Greenhouse, Lever, Ashby and Recruitee, ~2,600
+registered company boards, each loaded and quality-checked nightly by its own Airflow DAG.
+Three further ATS platforms surveyed and mapped (Teamtailor next).
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    A[ATS public APIs<br/>Greenhouse · Lever · Ashby] -->|extractor| B[(GCS landing zone<br/>raw JSON, untouched)]
+    A[ATS public APIs<br/>Greenhouse · Lever · Ashby · Recruitee] -->|extractor| B[(GCS landing zone<br/>raw JSON, untouched)]
     C[(BigQuery<br/>raw.companies)] -->|which boards, per ATS| A
     B -->|loader| D[(BigQuery<br/>raw.&lt;source&gt;_postings_incoming<br/>staging, replaced each run)]
     D -->|MERGE on id,<br/>latest file wins| E[(BigQuery<br/>raw.&lt;source&gt;_postings<br/>one row per job)]
@@ -136,14 +136,16 @@ python -m ingestion.checks greenhouse $D   # checks and fill rates
 ## Operations
 
 - **Schedule:** one DAG per source, staggered so they never compete for the host:
-  `greenhouse_ingestion` 01:30, `lever_ingestion` 02:30, `ashby_ingestion` 03:30 UTC, all
+  `greenhouse_ingestion` 01:30, `lever_ingestion` 02:30, `ashby_ingestion` 03:30,
+  `recruitee_ingestion` 04:30 UTC, all
   `catchup=False`. Tasks: `extract >> load >> check`; the extract's and the load's summaries
   reach `check` via XCom.
 - **Runs on:** a self-hosted Airflow 3 (Docker, LocalExecutor). Deploys happen automatically
   when `main` changes, after the tests and DAG-import checks pass.
-- **Dependencies:** the Greenhouse, Lever and Ashby public job-board APIs · a GCS bucket for landed files ·
+- **Dependencies:** the Greenhouse, Lever, Ashby and Recruitee public job-board APIs · a GCS bucket for landed files ·
   BigQuery (`companies` registry in, postings out). No other pipeline depends on this one yet.
-- **Retries:** each task retries twice, 5 minutes apart, with a 45-minute timeout. The check
+- **Retries:** each task retries twice, 5 minutes apart, with a 45-minute timeout (120 for
+  Recruitee, which has ~1,500 boards). The check
   task does not retry - re-running a check on unchanged data only delays the alert.
 - **When it fails:** see [RUNBOOK.md](RUNBOOK.md) - what each failure means, what to check,
   what to do.
@@ -154,8 +156,9 @@ python -m ingestion.checks greenhouse $D   # checks and fill rates
 - [x] Airflow DAG (self-hosted, Docker) running the daily extract → load → merge
 - [x] Hardening: data-quality checks, retries and timeouts, failure alerts, tests, CI/CD, type checking
 - [x] Scale to hundreds of companies (batched loads; 5 → 212 → 485 Greenhouse boards)
-- [x] Second and third sources: Lever and Ashby, sharing extract, load and checks
-- [ ] Recruitee, Teamtailor (one request per company), then Workable and SmartRecruiters
+- [x] Second, third and fourth sources: Lever, Ashby and Recruitee (multilingual postings),
+      sharing extract, load and checks; board lists grown from a web-crawl index, validated first
+- [ ] Teamtailor (RSS/XML), then Workable and SmartRecruiters
       (a request per job, for unseen ids only)
 - [ ] dbt: a canonical job model across sources (remote / country / language), marts and tests
 - [ ] Separate dev and prod environments

@@ -9,6 +9,7 @@ all of them — substitute the source:
 | `greenhouse_ingestion` | `greenhouse` | 01:30 |
 | `lever_ingestion` | `lever` | 02:30 |
 | `ashby_ingestion` | `ashby` | 03:30 |
+| `recruitee_ingestion` | `recruitee` | 04:30 (timeout 120 min) |
 
 Every alert names the DAG, task, `ds` (the date the run is *for*), run id, attempt and the
 error.
