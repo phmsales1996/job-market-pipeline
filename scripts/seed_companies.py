@@ -23,6 +23,7 @@ import logging
 import pathlib
 import sys
 from collections.abc import Callable
+from urllib.parse import unquote
 
 from google.cloud import bigquery
 
@@ -89,7 +90,9 @@ VALIDATORS: dict[str, Callable[[str], tuple[bool, str, int]]] = {
 def read_slugs(path: str, source: str) -> list:
     data = json.loads(pathlib.Path(path).read_text())
     slugs = data[source] if isinstance(data, dict) else data
-    return sorted(dict.fromkeys(slugs))  # de-duplicate, keep it stable
+    # Slugs scraped from URLs can arrive percent-encoded ('it%20labs'). Decode before
+    # de-duplicating, or 'it labs' and 'it%20labs' become two registry rows for one board.
+    return sorted(dict.fromkeys(unquote(slug) for slug in slugs))  # de-duplicate, keep it stable
 
 
 def existing_slugs(client: bigquery.Client, source: str) -> set:
