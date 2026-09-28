@@ -6,29 +6,38 @@ looking for, such as remote-only, country and language — across company career
 A batch data pipeline that collects public job postings from applicant-tracking systems
 (ATS), lands the raw responses in Google Cloud Storage, and loads them into BigQuery.
 
-**Status:** one source (Greenhouse) in production - 212 company boards, ~20k open jobs,
-loaded and quality-checked nightly on Airflow. Six further ATS platforms surveyed and mapped.
+**Status:** three sources in production - Greenhouse, Lever and Ashby, ~1,100 registered
+company boards and ~44k open jobs, each loaded and quality-checked nightly by its own Airflow DAG.
+Four further ATS platforms surveyed and mapped.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    A[Greenhouse Job Board API] -->|extractor| B[(GCS landing zone<br/>raw JSON, untouched)]
-    C[(BigQuery<br/>raw.companies)] -->|which companies| A
-    B -->|loader| D[(BigQuery<br/>raw.greenhouse_postings_incoming<br/>staging, replaced each run)]
-    D -->|MERGE on id,<br/>latest file wins| E[(BigQuery<br/>raw.greenhouse_postings<br/>one row per job)]
+    A[ATS public APIs<br/>Greenhouse · Lever · Ashby] -->|extractor| B[(GCS landing zone<br/>raw JSON, untouched)]
+    C[(BigQuery<br/>raw.companies)] -->|which boards, per ATS| A
+    B -->|loader| D[(BigQuery<br/>raw.&lt;source&gt;_postings_incoming<br/>staging, replaced each run)]
+    D -->|MERGE on id,<br/>latest file wins| E[(BigQuery<br/>raw.&lt;source&gt;_postings<br/>one row per job)]
 ```
 
 
 
-1. **Extract** (`ingestion/greenhouse.py`): reads the list of companies to collect from a
-  BigQuery registry table and calls Greenhouse's public Job Board API for each one. The
+The same three steps run for every source. What is shared lives in one module per step;
+each source only supplies what genuinely differs.
+
+1. **Extract** (`ingestion/ats.py` + `ingestion/<source>.py`): reads the boards to collect
+   from a BigQuery registry table and calls the source's public API for each one. The
    response bytes are stored unchanged in GCS at
-   `greenhouse/ingest_date=YYYY-MM-DD/<company>/<time>.json`.
-2. **Load** (`ingestion/greenhouse_loader.py`): lists everything that landed for the day,
-  flattens each job into the target schema, and batch-loads all rows into a staging table.
-3. **Merge** (`sql/merge_greenhouse_postings.sql`): upserts staging into the final table
-  by job `id`.
+   `<source>/ingest_date=YYYY-MM-DD/<board>/<time>.json`. A source module is one fetch
+   function - retries, landing, progress and the failure summary are shared.
+2. **Load** (`ingestion/loader.py` + `ingestion/<source>_loader.py`): lists everything that
+   landed for the day, flattens each job with the source's `transform`, stamps the pipeline's
+   own timestamps, and batch-loads the rows into a staging table.
+3. **Merge** (`sql/merge_<source>_postings.sql`): upserts staging into the final table by
+   job `id`.
+4. **Check** (`ingestion/checks.py`): blocking checks (every board landed or failed
+   explainably, staging rebuilt from today's files, unique keys, merge applied) and a fill
+   rate per column, with the column list read from `INFORMATION_SCHEMA`.
 
 
 
@@ -57,6 +66,12 @@ latency. Load jobs are also free, which fits a free-tier budget.
 - **Explicit schemas.** Tables are created from the DDL in `sql/`, and loads use
 `autodetect=False`. With autodetection on, a column that happened to be all `NULL` in a
 batch was once inferred as `STRING` instead of the declared `TIMESTAMP`.
+- **Share what varies, not what is "common".** Values that differ per source become
+parameters; behaviour that differs (how to fetch, how to flatten) is passed in as a function.
+Adding Ashby took one fetch function, one `transform`, two DDL files and a MERGE column list.
+- **Raw tables keep each source's own vocabulary.** Lever says `Full-Time`, Ashby
+`FullTime`; Lever's country is `US`, Ashby's `USA`. Values are stored as published and
+mapped once, downstream, in the canonical model - documented per column in the DDL.
 - **Configuration comes from the environment.** Bucket and dataset names are never in the
 code. They are read from environment variables, and the process fails immediately if one
 is missing (`os.environ[...]`, not `.get`). The GCP project comes from the environment's
@@ -69,14 +84,20 @@ that Python fills in, because BigQuery query parameters can't be used for table 
 
 ```
 dags/
-  greenhouse_dag.py        Airflow DAG: daily extract -> load, driven by the run's logical date
-  hello.py                 minimal example DAG
+  <source>_dag.py          one DAG per source: extract >> load >> check, on the run's logical date
 ingestion/
-  greenhouse.py            extract: companies registry -> Greenhouse API -> GCS
-  greenhouse_loader.py     load: GCS -> staging table -> MERGE into the final table
+  ats.py                   shared extract: registry -> fetch -> GCS, failure summary
+  loader.py                shared load: GCS -> staging (batched) -> MERGE
+  checks.py                shared data-quality checks and fill rates
+  <source>.py              per source: how to fetch one board
+  <source>_loader.py       per source: how to flatten one payload into rows
+  alerts.py, dates.py      failure callback; logical-date validation
+scripts/
+  seed_companies.py        validate board slugs against the API, then add them to the registry
 sql/
-  create_*.sql             table DDL (run once, by hand)
-  merge_greenhouse_postings.sql   MERGE template, run by the loader
+  create_*.sql             table DDL, with table and column descriptions (run once, by hand)
+  merge_<source>_postings.sql   MERGE template, run by the loader
+tests/                     pure unit tests (no mocks) for transforms and check logic
 ```
 
 
@@ -95,27 +116,34 @@ pip install -r requirements.txt
 export NAME_BUCKET=<your-landing-bucket>
 export NAME_DATASET=<your-raw-dataset>
 
-# once: create the tables (the DDL uses the dev_raw dataset)
+# once: create the tables (the DDL uses the dev_raw dataset); repeat per source
 bq query --use_legacy_sql=false < sql/create_dev_raw_companies.sql
 bq query --use_legacy_sql=false < sql/create_dev_raw_greenhouse_postings.sql
 bq query --use_legacy_sql=false < sql/create_dev_raw_greenhouse_postings_incoming.sql
-# then add rows to the companies table: name, external_id (the Greenhouse board slug), ats = 'greenhouse'
 
-python ingestion/greenhouse.py          # extract and land
-python ingestion/greenhouse_loader.py   # load and merge
+# register boards: a JSON list of slugs, validated against the API before insert
+python scripts/seed_companies.py greenhouse slugs.json --insert
+
+# one day, by hand (always pass the date: the default is the local date, not UTC)
+D=$(date -u +%F)
+python -m ingestion.greenhouse $D          # extract and land
+python -m ingestion.greenhouse_loader $D   # load and merge
+python -m ingestion.checks greenhouse $D   # checks and fill rates
 ```
 
 
 
 ## Operations
 
-- **Schedule:** daily at 01:30 UTC (`greenhouse_ingestion`), `catchup=False`. Tasks:
-  `extract >> load >> check`.
+- **Schedule:** one DAG per source, staggered so they never compete for the host:
+  `greenhouse_ingestion` 01:30, `lever_ingestion` 02:30, `ashby_ingestion` 03:30 UTC, all
+  `catchup=False`. Tasks: `extract >> load >> check`; the extract's and the load's summaries
+  reach `check` via XCom.
 - **Runs on:** a self-hosted Airflow 3 (Docker, LocalExecutor). Deploys happen automatically
   when `main` changes, after the tests and DAG-import checks pass.
-- **Dependencies:** Greenhouse's public Job Board API · a GCS bucket for landed files ·
+- **Dependencies:** the Greenhouse, Lever and Ashby public job-board APIs · a GCS bucket for landed files ·
   BigQuery (`companies` registry in, postings out). No other pipeline depends on this one yet.
-- **Retries:** each task retries twice, 5 minutes apart, with a 20-minute timeout. The check
+- **Retries:** each task retries twice, 5 minutes apart, with a 45-minute timeout. The check
   task does not retry - re-running a check on unchanged data only delays the alert.
 - **When it fails:** see [RUNBOOK.md](RUNBOOK.md) - what each failure means, what to check,
   what to do.
@@ -125,9 +153,10 @@ python ingestion/greenhouse_loader.py   # load and merge
 - [x] Greenhouse, multiple companies, end to end, idempotent
 - [x] Airflow DAG (self-hosted, Docker) running the daily extract → load → merge
 - [x] Hardening: data-quality checks, retries and timeouts, failure alerts, tests, CI/CD, type checking
-- [x] Scale to hundreds of companies (batched loads; 5 → 212 boards)
-- [ ] More sources: Lever, Ashby, Recruitee, Teamtailor (one request per company), then Workable
-      and SmartRecruiters (a request per job, for unseen ids only)
+- [x] Scale to hundreds of companies (batched loads; 5 → 212 → 485 Greenhouse boards)
+- [x] Second and third sources: Lever and Ashby, sharing extract, load and checks
+- [ ] Recruitee, Teamtailor (one request per company), then Workable and SmartRecruiters
+      (a request per job, for unseen ids only)
 - [ ] dbt: a canonical job model across sources (remote / country / language), marts and tests
 - [ ] Separate dev and prod environments
 - [ ] Serving layer / dashboard
