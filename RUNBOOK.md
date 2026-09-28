@@ -1,7 +1,17 @@
-# Runbook — Greenhouse ingestion
+# Runbook — ATS ingestion
 
-What to do when the daily DAG (`greenhouse_ingestion`, 01:30 UTC) fails. Every alert names
-the DAG, task, `ds` (the date the run is *for*), run id, attempt and the error.
+What to do when a daily ingestion DAG fails. There is one per source, all with the same
+tasks (`extract >> load >> check`) and the same shared code, so every entry below applies to
+all of them — substitute the source:
+
+| DAG | Source (`<source>`) | Schedule (UTC) |
+|---|---|---|
+| `greenhouse_ingestion` | `greenhouse` | 01:30 |
+| `lever_ingestion` | `lever` | 02:30 |
+| `ashby_ingestion` | `ashby` | 03:30 |
+
+Every alert names the DAG, task, `ds` (the date the run is *for*), run id, attempt and the
+error.
 
 **First three things, always:**
 
@@ -13,27 +23,28 @@ the DAG, task, `ds` (the date the run is *for*), run id, attempt and the error.
 **Rerunning:** clear the task in the UI (Task → Clear), or run the step directly:
 
 ```bash
-python -m ingestion.greenhouse <ds>          # extract + land
-python -m ingestion.greenhouse_loader <ds>   # load staging + merge
-python -m ingestion.greenhouse_checks <ds>   # checks only
+python -m ingestion.<source> <ds>            # extract + land
+python -m ingestion.<source>_loader <ds>     # load staging + merge
+python -m ingestion.checks <source> <ds>     # checks only
 ```
 
 ---
 
 ## `All N companies failed for <ds>`
 
-**Means:** every Greenhouse request failed. It's our side or theirs, not one company.
+**Means:** every request to that source failed. It's our side or theirs, not one company.
 
-**Check:** is the API reachable at all —
-`curl -s -o /dev/null -w '%{http_code}\n' 'https://boards-api.greenhouse.io/v1/boards/gitlab/jobs'`
-(200 = fine). If that works from your laptop, check the VPS has network and the run isn't
+**Check:** is the API reachable at all (200 = fine) —
+`curl -sS -o /dev/null -w '%{http_code}\n' 'https://boards-api.greenhouse.io/v1/boards/gitlab/jobs'`,
+`curl -sS -o /dev/null -w '%{http_code}\n' 'https://api.lever.co/v0/postings/<any-slug>?mode=json'`,
+`curl -sS -o /dev/null -w '%{http_code}\n' 'https://api.ashbyhq.com/posting-api/job-board/<any-slug>'`. If that works from your laptop, check the VPS has network and the run isn't
 hitting a rate limit (many companies, all failing at once).
 
 **Fix:** once the API answers, rerun `extract` for that `ds`, then `load` and `check`. If
-Greenhouse is down, wait — the next day's run re-fetches everything anyway, since the API
+the source is down, wait — the next day's run re-fetches everything anyway, since the API
 only ever returns currently-open jobs.
 
-## `No companies found in the registry for ats='greenhouse'`
+## `No companies found in the registry for ats='<source>'`
 
 **Means:** the driving table `dev_raw.companies` returned no rows. Nothing was attempted.
 
@@ -49,34 +60,47 @@ code and is case-sensitive.
 different date.
 
 **Check:** was `extract` green for this run? Does the folder exist —
-`gcloud storage ls "gs://$NAME_BUCKET/greenhouse/ingest_date=<ds>/"`. Also look for a
+`gcloud storage ls "gs://$NAME_BUCKET/<source>/ingest_date=<ds>/"`. Also look for a
 folder named `ingest_date=None`, which means a run was triggered without a logical date.
 
 **Fix:** rerun `extract` for that `ds`, then `load`. Trigger from the CLI *with* a date:
-`./bin/airflow dags trigger greenhouse_ingestion --logical-date "$(date -u +%FT%TZ)"`.
+`./bin/airflow dags trigger <source>_ingestion --logical-date "$(date -u +%FT%TZ)"`.
 
-## `N out of M companies missing for <ds>: ...` (check C1, blocking)
+## `N companies landed no file for <ds> although the extract reported success` (check C1, blocking)
 
-**Means:** more than half the companies produced no file. Individual companies fail
-occasionally; more than half points at something shared — network, credentials, rate limits.
+**Means:** the extract said these boards landed, and their files are not in GCS. There is no
+threshold: an *unexplained* absence is always a bug (a landing path mismatch, a date
+mismatch between tasks, deleted objects), whatever the count.
 
-**Check:** the `extract` log lists each failure with its reason (`Fetch failed for <slug>: ...`).
-Look at whether the errors are all the same kind. Try one slug by hand:
+**Check:** the `extract` log for those slugs (`[i/N] ...` lines) and the GCS folder for that
+`ds`. Look for a folder under a different date or a differently spelled slug — on
+2026-09-28 percent-encoded slugs (`it%20labs`) produced `%20` folders.
+
+**Fix:** find the mismatch before rerunning; a rerun that repeats it will fail the same way.
+
+## `N of M companies failed to fetch for <ds> (no file expected)` (check C1, warning)
+
+**Means:** a few boards could not be fetched, the extract reported them in `failed_slugs`,
+and the run continued on purpose — an *explained* absence.
+
+**Check:** the named slugs in the `extract` log (`No data landed for <slug>`, with the HTTP
+error just above). A board that fails several days in a row has usually renamed or closed.
+Try one by hand:
 `python -c 'import sys; sys.path.insert(0, "."); from ingestion import greenhouse; print(len(greenhouse.fetch_greenhouse_raw("gitlab") or b""))'`
+(swap in `lever.fetch_lever_raw` / `ashby.fetch_ashby_raw`).
 
-**Fix:** if it was transient, rerun `extract` + `load` + `check`. If those companies really
-are gone from Greenhouse (404 each), remove or correct their rows in `dev_raw.companies`.
+**Fix:** nothing urgent. Remove or correct the row in `dev_raw.companies` when a slug is
+permanently dead (404 each day).
 
-## `WARNING: N out of M companies missing` (check C1, non-blocking)
+## `N out of M companies missing` (check C1, only when run from the CLI)
 
-**Means:** a few companies failed; the run continued on purpose.
+**Means:** run without the extract's summary (`python -m ingestion.checks`), C1 cannot tell
+explained from unexplained absences, so it falls back to a threshold: more than half missing
+raises, fewer warns.
 
-**Check:** the named slugs in the `extract` log. A company that fails for several days in a
-row has usually renamed or closed its board.
+**Fix:** as above; in the DAG this case does not occur.
 
-**Fix:** nothing urgent. Correct the registry when a slug is permanently dead.
-
-## `Staging table is empty for date: <ds>` (check C2)
+## `Staging is empty for date: <ds>` (check C2)
 
 **Means:** the load ran but inserted nothing.
 
@@ -86,18 +110,23 @@ row has usually renamed or closed its board.
 **Fix:** if files exist, rerun `load` for that `ds`. If they don't, this is really the
 "no files" case above: rerun `extract` first.
 
-## `Number of files different! Files in staging: X. Files in GCS: Y` (check C2)
+## `Number of files different! Files in staging: X. Files expected: Y` (check C2)
 
-**Means:** staging was not built from this day's files. Almost always Y > X: an `extract`
-landed files that no `load` has processed yet (for example a manual extract, or a load that
-died).
+**Means:** staging was not built from exactly the files the load reported. In the DAG, `Y` is
+the loader's own `files_with_rows` (boards with zero open jobs legitimately produce no rows,
+so they are not counted). A mismatch means an `extract` landed files after the `load` read
+the folder (a manual extract, or a retry overlapping), or a load died halfway.
 
 **Check:** compare
-`gcloud storage ls "gs://$NAME_BUCKET/greenhouse/ingest_date=<ds>/**" | wc -l`
-with `SELECT COUNT(DISTINCT landed_at) FROM dev_raw.greenhouse_postings_incoming`.
+`gcloud storage ls "gs://$NAME_BUCKET/<source>/ingest_date=<ds>/**" | wc -l`
+with `SELECT COUNT(DISTINCT landed_at) FROM dev_raw.<source>_postings_incoming`.
 
-**Fix:** rerun `load` for that `ds`, then `check`. X > Y instead means staging holds files
-that are no longer in GCS — someone deleted objects; investigate before rerunning.
+**Fix:** rerun `load` for that `ds`, then `check`.
+
+## `Staging holds more files than exist for <ds>` (check C2)
+
+**Means:** staging has rows from files that are not in this day's folder — rows from another
+day, or objects deleted after loading. Investigate before rerunning.
 
 ## `There are duplicate keys in the table` (check C3)
 
@@ -106,13 +135,13 @@ impossible, so treat it as a real bug rather than a blip.
 
 **Check:**
 ```sql
-SELECT id, COUNT(*) c FROM dev_raw.greenhouse_postings GROUP BY id HAVING c > 1 LIMIT 10
+SELECT id, COUNT(*) c FROM dev_raw.<source>_postings GROUP BY id HAVING c > 1 LIMIT 10
 ```
 Then look at whether the MERGE ran, or whether something inserted rows directly.
 
 **Fix:** don't paper over it. Find the source first. BigQuery keeps 7 days of history, so
 the previous state can be inspected with
-`SELECT ... FROM dev_raw.greenhouse_postings FOR SYSTEM_TIME AS OF TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)`.
+`SELECT ... FROM dev_raw.<source>_postings FOR SYSTEM_TIME AS OF TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)`.
 
 ## `N IDs never made it to the table` (check C4)
 
@@ -135,10 +164,12 @@ for the load and the checks (`/opt/airflow/.env` on the VPS)?
 
 ## A task timed out, or retried twice and gave up
 
-**Means:** the task ran longer than 20 minutes (`execution_timeout`), or failed 3 times.
+**Means:** the task ran longer than 45 minutes (`execution_timeout`, per task), or failed
+3 times.
 
-**Check:** the log's timings. A slow network makes the extract crawl; the VPS normally
-finishes it in about 25 seconds. Check the VPS has memory and disk free:
+**Check:** the log's timings against the baselines: at ~200-400 boards each, extract and load
+take ~12-17 minutes. Duration grows with the number of registered boards, so a registry that
+just grew is the first suspect. Check the VPS has memory and disk free:
 `ssh <vps> 'free -h; df -h /'`.
 
 **Fix:** rerun the failed task. If it's slow but healthy, raise `execution_timeout` in the
