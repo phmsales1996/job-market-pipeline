@@ -26,14 +26,16 @@ _retry = Retry(
 session = requests.Session()
 session.mount("https://", HTTPAdapter(max_retries=_retry))
 
-def land_raw_json(date: str, content: bytes, source: str, slug: str) -> str:
+CONTENT_TYPES = {"json": "application/json", "xml": "application/xml"}
+
+def land_raw(date: str, content: bytes, source: str, slug: str, file_format: str="json") -> str:
     timestamp = datetime.datetime.now().strftime("%H%M%S")
-    destination_path = f"{source}/ingest_date={date}/{slug}/{timestamp}.json"
+    destination_path = f"{source}/ingest_date={date}/{slug}/{timestamp}.{file_format}"
 
     client = storage.Client()
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(destination_path)
-    blob.upload_from_string(content, content_type="application/json")
+    blob.upload_from_string(content, content_type=CONTENT_TYPES[file_format])
 
     return destination_path
 
@@ -47,7 +49,7 @@ def fetch_companies(ats: str) -> list:
     results_list = list(results)
     return results_list
 
-def run_extract(ats: str, fetch_fn: Callable[[str], bytes | None], date: str) -> dict:
+def run_extract(ats: str, fetch_fn: Callable[[str], bytes | None], date: str, file_format: str = "json") -> dict:
     require_date(date)
     companies = fetch_companies(ats)
     if not companies:
@@ -60,7 +62,7 @@ def run_extract(ats: str, fetch_fn: Callable[[str], bytes | None], date: str) ->
         raw = fetch_fn(slug)
         if raw is not None:
             logger.info(f"[{i}/{total}] Fetched {len(raw)} bytes for {slug}")
-            path = land_raw_json(date, raw, source=ats, slug=slug)
+            path = land_raw(date, raw, source=ats, slug=slug, file_format=file_format)
             logger.info(f"Landed to gs://{bucket_name}/{path}")
         else:
             failures.append(slug)
