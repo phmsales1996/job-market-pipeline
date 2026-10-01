@@ -10,6 +10,7 @@ all of them — substitute the source:
 | `lever_ingestion` | `lever` | 02:30 |
 | `ashby_ingestion` | `ashby` | 03:30 |
 | `recruitee_ingestion` | `recruitee` | 04:30 (timeout 120 min) |
+| `teamtailor_ingestion` | `teamtailor` | 05:30 (timeout 90 min) |
 
 Every alert names the DAG, task, `ds` (the date the run is *for*), run id, attempt and the
 error.
@@ -100,6 +101,19 @@ explained from unexplained absences, so it falls back to a threshold: more than 
 raises, fewer warns.
 
 **Fix:** as above; in the DAG this case does not occur.
+
+## `Returned exactly the number of jobs as Per Page: N, for company <slug>` (Teamtailor extract)
+
+**Means:** a Teamtailor feed returned exactly `PER_PAGE` items. The feed silently caps results
+(100 by default, which is why the extract asks for 10,000); a count equal to the request is a
+ceiling, not a total. The board is treated as failed rather than landed truncated.
+
+**Check:** `curl -sS "https://<slug>.teamtailor.com/jobs.rss?per_page=20000" | grep -o "<item>" | wc -l`
+- if that is larger, Teamtailor added (or lowered) a limit.
+
+**Fix:** raise `PER_PAGE` in `ingestion/teamtailor.py` if the feed honours a bigger value; if
+it is now capped hard, the extract needs offset paging (`?offset=`), which the feed supported
+when examined.
 
 ## `Staging is empty for date: <ds>` (check C2)
 

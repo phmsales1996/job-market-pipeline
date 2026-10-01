@@ -22,6 +22,7 @@ import json
 import logging
 import pathlib
 import sys
+import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from urllib.parse import unquote
 
@@ -39,6 +40,7 @@ GREENHOUSE_URL = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs"
 LEVER_URL = "https://api.lever.co/v0/postings/{slug}?mode=json"
 ASHBY_URL = "https://api.ashbyhq.com/posting-api/job-board/{slug}?includeCompensation=true"
 RECRUITEE_URL = "https://{slug}.recruitee.com/api/offers/"
+TEAMTAILOR_URL = "https://{slug}.teamtailor.com/jobs.rss?per_page=10000"
 
 
 def name_from_slug(slug: str) -> str:
@@ -89,12 +91,27 @@ def check_recruitee(slug: str) -> tuple[bool, str, int]:
         return False, str(e).split(" for url")[0], 0
     return True, name_from_slug(slug), len(jobs)
 
+def check_teamtailor(slug: str) -> tuple[bool, str, int]:
+    """Same contract as the others, but the payload is RSS: no JSON to parse, so 'is this
+    really a feed?' is answered by the content type, and the channel title is the real name."""
+    try:
+        response = session.get(TEAMTAILOR_URL.format(slug=slug), timeout=15)
+        response.raise_for_status()
+        if "xml" not in response.headers.get("content-type", ""):
+            return False, "not an RSS feed (200 but no XML)", 0
+        n_jobs = response.content.count(b"<item>")
+        name = ET.fromstring(response.content).findtext("channel/title")
+    except Exception as e:  # noqa: BLE001
+        return False, str(e).split(" for url")[0], 0
+    return True, name or name_from_slug(slug), n_jobs
+
 
 VALIDATORS: dict[str, Callable[[str], tuple[bool, str, int]]] = {
     "greenhouse": check_greenhouse,
     "lever": check_lever,
     "ashby": check_ashby,
-    "recruitee": check_recruitee
+    "recruitee": check_recruitee,
+    "teamtailor": check_teamtailor
 }
 
 
