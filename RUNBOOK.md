@@ -11,6 +11,7 @@ all of them — substitute the source:
 | `ashby_ingestion` | `ashby` | 03:30 |
 | `recruitee_ingestion` | `recruitee` | 04:30 (timeout 120 min) |
 | `teamtailor_ingestion` | `teamtailor` | 05:30 (timeout 90 min) |
+| `workable_ingestion` | `workable` | 06:30 (timeout 90 min) |
 
 Every alert names the DAG, task, `ds` (the date the run is *for*), run id, attempt and the
 error.
@@ -114,6 +115,18 @@ ceiling, not a total. The board is treated as failed rather than landed truncate
 **Fix:** raise `PER_PAGE` in `ingestion/teamtailor.py` if the feed honours a bigger value; if
 it is now capped hard, the extract needs offset paging (`?offset=`), which the feed supported
 when examined.
+
+## `Workable rate limit hit after N details this run (Retry-After: …)` (Workable extract, warning)
+
+**Means:** Workable answered 429 on a job-detail request. The extract stopped requesting details
+for the rest of the run (lists still land; those jobs load without descriptions and are
+detailed on a later run). Not a failure. `N` is the measurement of the API's allowance.
+
+**Check:** the extract's last log line (`N fetched, M deferred`). A deferred count that stops
+shrinking night after night means the allowance is smaller than the daily stream of new jobs.
+
+**Fix:** none needed for a backlog. If it persists, lower `MAX_DETAILS_PER_RUN` in
+`ingestion/workable.py` below the observed `N`, so requests stop before the limit does.
 
 ## `Staging is empty for date: <ds>` (check C2)
 
