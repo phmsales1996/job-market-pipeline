@@ -41,6 +41,7 @@ LEVER_URL = "https://api.lever.co/v0/postings/{slug}?mode=json"
 ASHBY_URL = "https://api.ashbyhq.com/posting-api/job-board/{slug}?includeCompensation=true"
 RECRUITEE_URL = "https://{slug}.recruitee.com/api/offers/"
 TEAMTAILOR_URL = "https://{slug}.teamtailor.com/jobs.rss?per_page=10000"
+WORKABLE_URL = "https://apply.workable.com/api/v1/widget/accounts/{slug}"
 
 
 def name_from_slug(slug: str) -> str:
@@ -105,13 +106,24 @@ def check_teamtailor(slug: str) -> tuple[bool, str, int]:
         return False, str(e).split(" for url")[0], 0
     return True, name or name_from_slug(slug), n_jobs
 
+def check_workable(slug: str) -> tuple[bool, str, int]:
+    """Same contract; the list response carries the account's real name at the top level."""
+    try:
+        response = session.get(WORKABLE_URL.format(slug=slug), timeout=15)
+        response.raise_for_status()
+        account = response.json()
+    except Exception as e:  # noqa: BLE001
+        return False, str(e).split(" for url")[0], 0
+    return True, account.get("name") or name_from_slug(slug), len(account.get("jobs") or [])
+
 
 VALIDATORS: dict[str, Callable[[str], tuple[bool, str, int]]] = {
     "greenhouse": check_greenhouse,
     "lever": check_lever,
     "ashby": check_ashby,
     "recruitee": check_recruitee,
-    "teamtailor": check_teamtailor
+    "teamtailor": check_teamtailor,
+    "workable": check_workable
 }
 
 

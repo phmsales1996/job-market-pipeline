@@ -6,15 +6,15 @@ looking for, such as remote-only, country and language — across company career
 A batch data pipeline that collects public job postings from applicant-tracking systems
 (ATS), lands the raw responses in Google Cloud Storage, and loads them into BigQuery.
 
-**Status:** five sources in production - Greenhouse, Lever, Ashby, Recruitee and Teamtailor,
-~3,600 registered company boards, each loaded and quality-checked nightly by its own Airflow
-DAG. Two further ATS platforms surveyed and mapped.
+**Status:** six sources - Greenhouse, Lever, Ashby, Recruitee, Teamtailor and Workable -
+each loaded and quality-checked nightly by its own Airflow DAG. One further ATS platform
+surveyed and mapped.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    A[ATS public APIs and feeds<br/>Greenhouse · Lever · Ashby · Recruitee · Teamtailor] -->|extractor| B[(GCS landing zone<br/>raw JSON, untouched)]
+    A[ATS public APIs and feeds<br/>Greenhouse · Lever · Ashby · Recruitee · Teamtailor · Workable] -->|extractor| B[(GCS landing zone<br/>raw JSON, untouched)]
     C[(BigQuery<br/>raw.companies)] -->|which boards, per ATS| A
     B -->|loader| D[(BigQuery<br/>raw.&lt;source&gt;_postings_incoming<br/>staging, replaced each run)]
     D -->|MERGE on id,<br/>latest file wins| E[(BigQuery<br/>raw.&lt;source&gt;_postings<br/>one row per job)]
@@ -71,6 +71,11 @@ parameters; behaviour that differs (how to fetch, how to flatten) is passed in a
 Adding Ashby took one fetch function, one `transform`, two DDL files and a MERGE column list.
 - **The landing zone keeps each source's own format.** JSON lands as `.json`, Teamtailor's
 RSS as `.xml` - the extension and content type are a parameter of the shared landing code.
+- **Incremental where the source forces it.** Workable's job list has no descriptions; one
+request per job every night would be ~29k requests. The extract asks BigQuery which jobs it
+already holds and details only the rest (at most 3,000 per run, refreshed after 30 days). The
+MERGE updates description columns only from rows that carried a detail, so a quiet night
+never blanks them.
 - **Raw tables keep each source's own vocabulary.** Lever says `Full-Time`, Ashby
 `FullTime`; Lever's country is `US`, Ashby's `USA`. Values are stored as published and
 mapped once, downstream, in the canonical model - documented per column in the DDL.
@@ -139,12 +144,12 @@ python -m ingestion.checks greenhouse $D   # checks and fill rates
 
 - **Schedule:** one DAG per source, staggered so they never compete for the host:
   `greenhouse_ingestion` 01:30, `lever_ingestion` 02:30, `ashby_ingestion` 03:30,
-  `recruitee_ingestion` 04:30, `teamtailor_ingestion` 05:30 UTC, all
+  `recruitee_ingestion` 04:30, `teamtailor_ingestion` 05:30, `workable_ingestion` 06:30 UTC, all
   `catchup=False`. Tasks: `extract >> load >> check`; the extract's and the load's summaries
   reach `check` via XCom.
 - **Runs on:** a self-hosted Airflow 3 (Docker, LocalExecutor). Deploys happen automatically
   when `main` changes, after the tests and DAG-import checks pass.
-- **Dependencies:** the Greenhouse, Lever, Ashby and Recruitee public job-board APIs and Teamtailor's RSS feeds · a GCS bucket for landed files ·
+- **Dependencies:** the Greenhouse, Lever, Ashby and Recruitee public job-board APIs Teamtailor's RSS feeds and Workable's job-board API · a GCS bucket for landed files ·
   BigQuery (`companies` registry in, postings out). No other pipeline depends on this one yet.
 - **Retries:** each task retries twice, 5 minutes apart, with a 45-minute timeout (120 for
   Recruitee, which has ~1,500 boards; 90 for Teamtailor). The check
@@ -162,7 +167,10 @@ python -m ingestion.checks greenhouse $D   # checks and fill rates
       sharing extract, load and checks; board lists grown from a web-crawl index, validated first
 - [x] Fifth source: Teamtailor, an RSS/XML feed - landed as `.xml`, parsed with namespaces,
       with a tripwire against the feed's hidden 100-item default cap
-- [ ] Workable and SmartRecruiters
+- [x] Sixth source: Workable - incremental extraction (descriptions need one request per job,
+      so only jobs not yet held are detailed, capped per run, with a circuit breaker for the
+      API's rate limit)
+- [ ] SmartRecruiters
       (a request per job, for unseen ids only)
 - [ ] dbt: a canonical job model across sources (remote / country / language), marts and tests
 - [ ] Separate dev and prod environments
