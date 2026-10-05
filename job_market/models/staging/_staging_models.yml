@@ -339,3 +339,88 @@ models:
           the few postings whose sections hold no text once the markup is removed (4 on
           2026-10-05). 0.6% carry stray literal markup the company pasted in - counted, as
           a warning, by assert_recruitee_description_text_clean.
+
+  - name: stg_teamtailor_postings
+    description: >
+      One row per Teamtailor job posting, current state - the same grain as
+      raw.teamtailor_postings. Renames Teamtailor's columns to the canonical names and
+      translates its vocabulary through the seeds (workplace, country). Translates, never
+      filters. Teamtailor publishes no salary, no employment type and no updated_at, so
+      those columns do not exist here.
+    columns:
+      - name: source
+        description: Always 'teamtailor'. Half of the canonical key (source, source_job_id).
+      - name: source_job_id
+        description: >
+          Teamtailor's own posting id (raw `id`, the feed's `guid`), a UUID string. Unique
+          within Teamtailor.
+        data_tests:
+          - not_null
+          - unique
+      - name: title
+        description: Job title as published. Not cleaned.
+        data_tests:
+          - not_null
+      - name: job_url
+        description: Public URL of the posting on the company's Teamtailor career site (raw `url`).
+        data_tests:
+          - not_null
+      - name: first_seen_at
+        description: Pipeline timestamp - when this job first appeared in a landed file.
+      - name: last_seen_at
+        description: >
+          Pipeline timestamp - when this job was last seen in a landed file. The only
+          freshness signal for Teamtailor (it publishes no updated_at), and the column the
+          source freshness check uses.
+      - name: workplace_type_raw
+        description: >
+          Teamtailor's own word for remoteness (raw `remote_status`), kept untouched next to
+          the translation. Observed 2026-10-05: 'none' (61%), 'hybrid', 'fully', 'onsite',
+          'temporary'. Never NULL so far.
+      - name: workplace_type
+        description: >
+          Canonical remoteness: 'remote', 'hybrid', 'in_person', 'unknown'. Translated through
+          the workplace_type_map seed (keyed on source + raw value). Two rows are
+          interpretations: 'none' -> 'in_person' (read as "no remote work": a sample of
+          postings looked not remote, 0.3% of their titles mention remote or hybrid, and the
+          61% share matches Recruitee's on-site share - but 'none' is probably also the
+          field's default, so some are simply never set), and 'temporary' -> 'hybrid'
+          (temporarily remote: some remote work, not a lasting remote job; 44 postings).
+          NULL would mean a word the seed does not know.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['remote', 'hybrid', 'in_person', 'unknown']
+
+      - name: country_code
+        description: >
+          ISO-3166 alpha-2, translated from Teamtailor's country NAME through the
+          country_codes seed. NULL when the posting has no country (712 on 2026-10-05), or
+          names a region the seed knows has no country.
+      - name: country_raw
+        description: >
+          Teamtailor's country as sent, a name (e.g. 'Norway', 'Brazil'). The country of the
+          one location the loader kept: a Brazilian one if the posting has any, else the
+          first listed.
+      - name: location_raw
+        description: >
+          Name of the location the loader kept (raw `location`), as the company wrote it.
+          Free text, not normalised. Postings can list several locations; the others stay in
+          the raw payload.
+      - name: role
+        description: >
+          Teamtailor's role for the posting, the level below department. Filled for about
+          45% of postings.
+      - name: department
+        description: Department as published. Filled for about 78% of postings.
+      - name: published_at
+        description: >
+          When the company published the posting (a source timestamp; converted from RFC-822
+          by the loader).
+      - name: description_text
+        description: >
+          The job description as plain text, converted from Teamtailor's single HTML field by
+          the html_to_text macro. The full posting, not a summary. NULL for the few postings
+          with no text once the markup is removed (7 on 2026-10-05).
+
