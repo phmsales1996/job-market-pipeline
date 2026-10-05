@@ -62,11 +62,11 @@ each source only supplies what genuinely differs.
 4. **Check** (`ingestion/checks.py`): blocking checks (every board landed or failed
    explainably, staging rebuilt from today's files, unique keys, merge applied) and a fill
    rate per column, with the column list read from `INFORMATION_SCHEMA`.
-5. **Transform** (`job_market/`, dbt): one staging model per source renames columns to the
+5. **Transform** (`dbt/`, the dbt project): one staging model per source renames columns to the
    canonical model and translates each source's vocabulary (country names, remote words, pay
    periods) through seed tables; HTML descriptions become plain text through a tested macro.
    Tests (unique keys, accepted values, unmapped values, seed coverage) run with every build.
-   Next: stack the six sources into one model, then marts. See [job_market/README.md](job_market/README.md).
+   Next: stack the six sources into one model, then marts. See [dbt/README.md](dbt/README.md).
 
 
 
@@ -134,7 +134,7 @@ sql/
   create_*.sql             table DDL, with table and column descriptions (run once, by hand)
   merge_<source>_postings.sql   MERGE template, run by the loader
 tests/                     pure unit tests (no mocks) for transforms and check logic
-job_market/                dbt project
+dbt/                       dbt project (named job_market)
   models/staging/          stg_<source>_postings + sources, tests and docs in YAML
   seeds/                   mapping tables (country, workplace, salary interval)
   macros/                  html_to_text

@@ -1,8 +1,12 @@
-# job_market — the dbt project
+# The dbt project (`job_market`)
 
 Transforms the raw ATS tables (`dev_raw.*_postings`, loaded by the Python pipeline) into one
 canonical shape. Layers: `staging` (one model per source: rename, translate, never drop rows) →
-`intermediate` → `marts`. Built so far: `stg_lever_postings`, `stg_ashby_postings`.
+`intermediate` → `marts`. Built so far: `stg_lever_postings`, `stg_ashby_postings`, `stg_recruitee_postings`,
+`stg_teamtailor_postings`.
+
+The folder is called `dbt/` so the repo reads at a glance; the project itself is named
+`job_market` in `dbt_project.yml`, which is also the name of the connection profile.
 
 - **Seeds** (`seeds/`): mapping tables as data — workplace type and salary interval (keyed on
   source + raw value), country codes (generated from observed values by
