@@ -6,3 +6,8 @@ lever,unspecified,unknown
 ashby,Remote,remote
 ashby,Hybrid,hybrid
 ashby,OnSite,in_person
+teamtailor,fully,remote
+teamtailor,hybrid,hybrid
+teamtailor,onsite,in_person
+teamtailor,none,in_person
+teamtailor,temporary,hybrid
