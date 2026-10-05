@@ -4,23 +4,47 @@
 looking for, such as remote-only, country and language — across company career boards.
 
 A batch data pipeline that collects public job postings from applicant-tracking systems
-(ATS), lands the raw responses in Google Cloud Storage, and loads them into BigQuery.
+(ATS), lands the raw responses in Google Cloud Storage, loads them into BigQuery, and
+transforms them with dbt into one canonical model.
 
 **Status:** six sources - Greenhouse, Lever, Ashby, Recruitee, Teamtailor and Workable -
-each loaded and quality-checked nightly by its own Airflow DAG. One further ATS platform
-surveyed and mapped.
+each loaded and quality-checked nightly by its own Airflow DAG; ~4,500 company boards. dbt
+transformation layer in progress (staging for two of the six sources).
 
 ## Architecture
 
 ```mermaid
-flowchart LR
-    A[ATS public APIs and feeds<br/>Greenhouse · Lever · Ashby · Recruitee · Teamtailor · Workable] -->|extractor| B[(GCS landing zone<br/>raw JSON, untouched)]
-    C[(BigQuery<br/>raw.companies)] -->|which boards, per ATS| A
-    B -->|loader| D[(BigQuery<br/>raw.&lt;source&gt;_postings_incoming<br/>staging, replaced each run)]
-    D -->|MERGE on id,<br/>latest file wins| E[(BigQuery<br/>raw.&lt;source&gt;_postings<br/>one row per job)]
+flowchart TB
+    SRC["<b>6 ATS sources</b><br/>Greenhouse · Lever · Ashby · Recruitee<br/>Teamtailor (RSS/XML) · Workable (list + detail)"]
+    REG[("companies registry<br/>~4,500 boards")]
+
+    subgraph ING["Extract and load: Python, one Airflow DAG per source, nightly"]
+        direction LR
+        EX["extract"] -->|"raw bytes, untouched"| GCS[("GCS landing zone<br/>.json / .xml, 7 days")]
+        GCS --> LD["load"]
+        LD --> INC[("&lt;source&gt;_postings_incoming<br/>replaced each run")]
+        INC -->|"MERGE on id"| RAW[("dev_raw.&lt;source&gt;_postings<br/>one row per job")]
+        RAW --> CK["check<br/>C1-C4, fill rates"]
+        CK -.->|on failure| ALERT["alert + runbook"]
+    end
+
+    subgraph DBT["Transform: dbt project job_market"]
+        direction LR
+        SEEDS[("seeds<br/>country, workplace,<br/>salary interval")] --> STG["staging<br/>stg_&lt;source&gt;_postings"]
+        STG --> INT["intermediate<br/>all sources stacked<br/>(planned)"]
+        INT --> MRT["marts<br/>star schema + remote_jobs<br/>(planned)"]
+    end
+
+    SRC --> EX
+    REG -->|which boards| EX
+    RAW -->|"source() + freshness"| STG
+    GIT["GitHub: PR, CI, deploy on merge"] -.-> ING
 ```
 
-
+**Two halves.** The **Python + Airflow** half extracts and loads: every source's response is
+kept untouched in GCS, then flattened into a raw BigQuery table per source, each in its own
+vocabulary. The **dbt** half transforms: staging models translate each source into canonical
+names and values (via seed tables), so they can be stacked into one model of the job market.
 
 The same three steps run for every source. What is shared lives in one module per step;
 each source only supplies what genuinely differs.
@@ -38,6 +62,11 @@ each source only supplies what genuinely differs.
 4. **Check** (`ingestion/checks.py`): blocking checks (every board landed or failed
    explainably, staging rebuilt from today's files, unique keys, merge applied) and a fill
    rate per column, with the column list read from `INFORMATION_SCHEMA`.
+5. **Transform** (`job_market/`, dbt): one staging model per source renames columns to the
+   canonical model and translates each source's vocabulary (country names, remote words, pay
+   periods) through seed tables; HTML descriptions become plain text through a tested macro.
+   Tests (unique keys, accepted values, unmapped values, seed coverage) run with every build.
+   Next: stack the six sources into one model, then marts. See [job_market/README.md](job_market/README.md).
 
 
 
@@ -105,6 +134,12 @@ sql/
   create_*.sql             table DDL, with table and column descriptions (run once, by hand)
   merge_<source>_postings.sql   MERGE template, run by the loader
 tests/                     pure unit tests (no mocks) for transforms and check logic
+job_market/                dbt project
+  models/staging/          stg_<source>_postings + sources, tests and docs in YAML
+  seeds/                   mapping tables (country, workplace, salary interval)
+  macros/                  html_to_text
+  tests/                   singular tests (unmapped values, seed coverage, leftover HTML)
+scripts/generate_country_seed.py   builds the country seed from observed values + ISO 3166
 ```
 
 
@@ -170,9 +205,9 @@ python -m ingestion.checks greenhouse $D   # checks and fill rates
 - [x] Sixth source: Workable - incremental extraction (descriptions need one request per job,
       so only jobs not yet held are detailed, capped per run, with a circuit breaker for the
       API's rate limit)
-- [ ] SmartRecruiters
-      (a request per job, for unseen ids only)
-- [ ] dbt: a canonical job model across sources (remote / country / language), marts and tests
+- [~] dbt: canonical model across sources — project, sources with freshness, seeds, an
+      HTML-to-text macro and staging for Lever and Ashby done; four staging models, the
+      unioned model and the marts (a star schema + a wide `remote_jobs` table) to go
 - [ ] Separate dev and prod environments
 - [ ] Serving layer / dashboard
 
