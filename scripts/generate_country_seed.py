@@ -1,4 +1,4 @@
-"""Generate the dbt seed job_market/seeds/country_codes.csv from the data itself.
+"""Generate the dbt seed dbt/seeds/country_codes.csv from the data itself.
 
 Collects every distinct country value the sources actually send (names like 'United States',
 'USA', 'Norway'; codes like 'US'), matches each against the ISO 3166 list, and writes one row
@@ -26,7 +26,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 from ingestion.ats import dataset  # noqa: E402
 
 ISO_URL = "https://raw.githubusercontent.com/datasets/country-codes/main/data/country-codes.csv"
-SEED_PATH = pathlib.Path(__file__).parent.parent / "job_market" / "seeds" / "country_codes.csv"
+SEED_PATH = pathlib.Path(__file__).parent.parent / "dbt" / "seeds" / "country_codes.csv"
 
 # Every column that holds a country value, per raw table.
 COUNTRY_COLUMNS = [
