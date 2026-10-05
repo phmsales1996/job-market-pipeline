@@ -205,3 +205,137 @@ models:
         description: >
           The job description as plain text (Ashby's descriptionPlain, stored by the loader).
           No HTML conversion needed. Empty strings become NULL.
+
+  - name: stg_recruitee_postings
+    description: >
+      One row per Recruitee job posting, current state - the same grain as
+      raw.recruitee_postings. Renames Recruitee's columns to the canonical names. Two columns
+      are interpreted rather than renamed: workplace_type (collapsed from three booleans) and
+      country_code (already ISO, confirmed against the country_codes seed). Translates, never
+      filters. Recruitee splits its text into three HTML sections; they are converted and
+      assembled into description_text. Not here yet: the mapped employment type.
+    columns:
+      - name: source
+        description: Always 'recruitee'. Half of the canonical key (source, source_job_id).
+      - name: source_job_id
+        description: >
+          Recruitee's own posting id (raw `id`), an integer cast to STRING so the key has one
+          type across sources. Unique within Recruitee.
+        data_tests:
+          - not_null
+          - unique
+      - name: title
+        description: >
+          Job title as published, in the one translation the loader kept (raw `language`).
+          Not cleaned.
+        data_tests:
+          - not_null
+      - name: language
+        description: >
+          Language code of the title (and, later, of the description), e.g. 'en', 'pt', 'de'.
+          Chosen by the loader, not sent by Recruitee: a posting can carry several
+          translations and one is kept - English if present, else Portuguese, else the first
+          code alphabetically, so the choice cannot flip between runs. NULL when the posting
+          has no translations at all.
+      - name: job_url
+        description: >
+          Public URL of the posting (raw `url`, Recruitee's `careers_url`). Often on the
+          company's own domain rather than recruitee.com.
+        data_tests:
+          - not_null
+      - name: country_code
+        description: >
+          ISO-3166 alpha-2. Recruitee already sends a code, so nothing is translated: the join
+          to the country_codes seed (which lists every code as its own identity row) only
+          confirms the code is a real one. NULL would mean no country, or a code the seed does
+          not know. On 2026-10-05 all 23,005 postings had a known code - an observation, not
+          a promise from Recruitee, so not_null only warns: a posting without a country is
+          legitimate data, but the first one is worth hearing about.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: country_raw
+        description: >
+          Recruitee's `country_code` as sent (trimmed; an empty string would become NULL).
+          Kept next to country_code so a code the seed rejects stays visible. Every value
+          must be known to the country_codes seed - tested by assert_recruitee_country_known.
+      - name: first_seen_at
+        description: Pipeline timestamp - when this job first appeared in a landed file.
+      - name: last_seen_at
+        description: >
+          Pipeline timestamp - when this job was last seen in a landed file. The column the
+          source freshness check uses.
+      - name: workplace_type
+        description: >
+          Canonical remoteness: 'remote', 'hybrid', 'in_person', 'unknown'. An interpretation,
+          not a lookup: Recruitee sends three independent booleans (remote, hybrid, on_site)
+          and 9.4% of postings set more than one. Rule: the most flexible option offered wins
+          (remote, then hybrid, then in_person). So 'remote' here means "remote is offered",
+          possibly among other options - unlike Lever and Ashby, where the source picks one
+          value. Evidence (2026-10-05): a sample of the 91 postings flagged remote + on_site
+          read mostly as remote roles. 'unknown' when no flag is true. Never NULL by
+          construction; not_null guards against a later edit of the rule.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['remote', 'hybrid', 'in_person', 'unknown']
+      - name: workplace_type_raw
+        description: >
+          The flags Recruitee set to true, in its own words, joined by '-': 'remote',
+          'hybrid', 'on_site', 'hybrid-on_site', 'remote-hybrid-on_site', ... NULL when none
+          is true. Keeps multi-flag postings distinguishable after workplace_type collapses
+          them.
+      - name: location_raw
+        description: >
+          Location display string as published (raw `location`), e.g. 'Remote job' or a city.
+          Free text, not normalised.
+      - name: department
+        description: Department as published. Often NULL - many boards do not use it.
+      - name: employment_type_raw
+        description: >
+          Recruitee's own employment type code (raw `employment_type`), e.g. 'fulltime',
+          'freelance'. Not mapped: there is no canonical employment_type until its seed exists.
+      - name: published_at
+        description: When the company published the posting (a source timestamp).
+      - name: updated_at
+        description: >
+          When Recruitee last changed the posting (a source timestamp). Only Recruitee and
+          Greenhouse say this; for the other sources last_seen_at is the only signal. Not the
+          same thing as last_seen_at: this is the source editing the posting, that is our
+          pipeline seeing it.
+      - name: salary_min
+        description: >
+          Lower bound of the advertised pay (Recruitee's `salary.min`). Usually NULL: every
+          posting carries a salary object, but few fill it in. Not annualised - see
+          salary_period_raw.
+      - name: salary_max
+        description: Upper bound of the advertised pay. Same caveats as salary_min.
+      - name: salary_currency
+        description: Currency of the advertised pay, as Recruitee sends it.
+      - name: salary_period_raw
+        description: >
+          Recruitee's own word for the pay period (raw `salary_period`), kept untouched next
+          to the translation. Observed 2026-10-05: 'month', 'year', 'hour', or NULL when the
+          posting gives no salary period.
+      - name: salary_interval
+        description: >
+          Canonical pay period ('year', 'month', 'hour', ...), translated through the
+          salary_interval_map seed (keyed on source + raw value). Recruitee's words happen to
+          equal the canonical ones, but they still go through the seed: a word it has never
+          seen comes out NULL here instead of leaking into the canonical column. NULL
+          otherwise means the posting gave no period.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['year', 'month', 'semi_month', 'bi_week', 'week', 'day', 'hour', 'one_time']
+      - name: description_text
+        description: >
+          The full job text as plain text, in the order of the job page: highlight (a short
+          opening sentence, 27% of postings), content (100%), requirements (80%) - joined by
+          blank lines, missing sections skipped. Each section is converted from HTML by the
+          html_to_text macro. In the one language the loader kept (see language). NULL for
+          the few postings whose sections hold no text once the markup is removed (4 on
+          2026-10-05). 0.6% carry stray literal markup the company pasted in - counted, as
+          a warning, by assert_recruitee_description_text_clean.
