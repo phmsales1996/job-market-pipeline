@@ -1,0 +1,207 @@
+models:
+  - name: stg_lever_postings
+    description: >
+      One row per Lever job posting, current state - the same grain as
+      raw.lever_postings. Renames Lever's columns to the canonical names in
+      CANONICAL_MODEL.md and adds `source`, so the six staging models can be stacked
+      into one table later. Translates, never filters: every raw row comes through.
+    columns:
+      - name: source
+        description: >
+          Which ATS the row came from - always 'lever' here. Half of the canonical key:
+          ids are only unique within a source (Greenhouse and Recruitee ids are both
+          integers and can collide), so the stacked table is keyed on
+          (source, source_job_id).
+      - name: source_job_id
+        description: >
+          Lever's own posting id (raw `id`), a UUID string. Unique within Lever - tested
+          here - but only unique across sources together with `source`.
+        data_tests:
+          - not_null
+          - unique
+      - name: title
+        description: Job title as published by the company. Not cleaned.
+      - name: job_url
+        description: >
+          Public URL of the posting on the company's Lever board (raw `url`). The page a
+          job seeker reads; the apply link is this URL plus '/apply' and is not kept.
+      - name: country_code
+        description: >
+          Country as an ISO-3166 alpha-2 code (raw `country`), e.g. 'US', 'PL'. Lever
+          already sends ISO codes, so it is only renamed - no mapping needed, unlike
+          Ashby ('USA') or Teamtailor ('Norway'). NULL when the posting gives no country
+          (~0.7% of rows).
+      - name: first_seen_at
+        description: >
+          Pipeline timestamp: when this job first appeared in a landed file. Not when the
+          company published it - the day a source or board is added, every existing job
+          is "first seen".
+      - name: last_seen_at
+        description: >
+          Pipeline timestamp: when this job was most recently seen in a landed file. The
+          only freshness signal for Lever (it publishes no updated_at), and the column
+          the source freshness check uses.
+      - name: workplace_type
+        description: >
+          Canonical remoteness: one of 'remote', 'hybrid', 'in_person', 'unknown'.
+          Translated from Lever's word through the workplace_type_map seed (keyed on
+          source + raw value), so every source's interpretation lives in one reviewable
+          file. NULL would mean Lever sent a word the seed does not know yet - which the
+          not_null test turns into a failure.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['remote', 'hybrid', 'in_person', 'unknown']
+      - name: workplace_type_raw
+        description: >
+          Lever's own word for remoteness (raw `workplace_type`), kept untouched next to
+          the translation so it stays visible and reversible. Observed values: 'remote',
+          'onsite', 'hybrid', 'unspecified'.
+      - name: location_raw
+        description: >
+          Location as the company wrote it (raw `location`), e.g. 'Remote', 'London'.
+          Free text, not normalised - kept for display and for debugging the derived
+          location fields. Lever can list several locations; only this first one is a
+          column (the rest are in the raw payload).
+      - name: team
+        description: >
+          The team the posting belongs to, e.g. 'Sales'. Comes from the raw column named
+          `department`, which actually holds Lever's `categories.team` - renamed here to
+          what it is. Lever's real department level is not stored. Which of department /
+          team becomes the canonical "department" is decided when the sources are stacked
+          (Ashby has both).
+      - name: published_at
+        description: >
+          When the company published the posting (Lever's `createdAt`, converted from
+          epoch milliseconds by the loader). A source timestamp - measures the job market,
+          not the pipeline; compare first_seen_at.
+      - name: salary_min
+        description: >
+          Lower bound of the advertised pay, as published, in salary_currency, per the
+          interval Lever states (not yet a column - translated through a seed in a later
+          step). NOT annualised: 24.5 can be an hourly wage. Contains bad values (0,
+          100,000,000 per year, yearly figures labelled bi-weekly); cleaning and
+          annualising are later, explicit steps. NULL for ~84% of postings.
+      - name: salary_max
+        description: Upper bound of the advertised pay. Same caveats as salary_min.
+      - name: salary_currency
+        description: Currency of the advertised pay, an ISO-4217 code (e.g. 'USD').
+      - name: salary_interval
+        description: >
+          Canonical pay period of salary_min/max: 'year', 'month', 'semi_month' (24 a
+          year), 'bi_week' (26 a year), 'week', 'day', 'hour' - kept distinct because
+          they annualise differently. Translated through the salary_interval_map seed.
+          NULL when the posting advertises no salary. A Lever word missing from the seed
+          also gives NULL - caught by tests/assert_lever_salary_interval_mapped.sql.
+          Translates the label faithfully: Lever's 3 'bi-week' postings of 75k-195k are
+          almost certainly mislabelled yearly figures, and stay 'bi_week' here.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['year', 'month', 'semi_month', 'bi_week', 'week', 'day', 'hour', 'one_time']
+      - name: salary_interval_raw
+        description: >
+          Lever's own pay-period word (raw `salary_interval`), kept next to the
+          translation: 'per-year-salary', 'per-month-salary', 'semi-month-salary',
+          'bi-week-salary', 'per-day-wage', 'per-hour-wage'.
+      - name: lists_text
+        description: >
+          Lever's `lists` sections as plain text: each section's title, ': ', then its
+          content cleaned by the html_to_text macro; sections in posting order, separated
+          by a blank line. Usually the requirements / qualifications. Lever sends these as
+          HTML only (no plain twin), so this is the one piece converted in SQL. NULL when
+          the posting has no lists (~11%). Measured 2026-10-04: no leftover tags; 3 of
+          14,601 postings keep an entity (double-escaped by the company, or the rare
+          &apos;).
+      - name: description_text
+        description: >
+          The full job text as plain text, in posting order: opening, description, the
+          lists sections (lists_text), additional - joined by blank lines, empty pieces
+          skipped. Every piece is converted from Lever's HTML with the html_to_text macro:
+          Lever's plain-text twins (descriptionPlain etc.) are blank for ~half the postings
+          even when the HTML has a full description, so they are not used. NULL only when
+          every piece is empty (40 postings). Measured 2026-10-04: no leftover tags (tested
+          by assert_lever_description_text_clean); 6 postings keep an entity (double-escaped
+          in the source, decoded once by design).
+
+  - name: stg_ashby_postings
+    description: >
+      One row per Ashby job posting, current state - the same grain as raw.ashby_postings.
+      Renames Ashby's columns to the canonical names and translates its vocabulary through
+      the seeds (workplace, salary interval, country). Translates, never filters. Unlike
+      Lever, Ashby has both a department and a team, and its description is already plain
+      text.
+    columns:
+      - name: source
+        description: Always 'ashby'. Half of the canonical key (source, source_job_id).
+      - name: source_job_id
+        description: Ashby's own posting id (raw `id`), a UUID string. Unique within Ashby.
+        data_tests:
+          - not_null
+          - unique
+      - name: title
+        description: Job title as published. Not cleaned.
+      - name: job_url
+        description: Public URL of the posting on the company's Ashby board (raw `url`).
+      - name: country_code
+        description: >
+          ISO-3166 alpha-2, translated from Ashby's country NAME through the country_codes
+          seed ('United States' and 'USA' both -> 'US'). NULL when Ashby gives no country, or
+          names a region the seed knows has no country ('European Union', 'Latin America').
+      - name: country_raw
+        description: >
+          Ashby's country as sent (a name, e.g. 'United States', 'USA', 'Brazil'); an empty
+          string is turned into NULL. Every value must be known to the country_codes seed -
+          tested by assert_ashby_country_known.
+      - name: first_seen_at
+        description: Pipeline timestamp - when this job first appeared in a landed file.
+      - name: last_seen_at
+        description: Pipeline timestamp - when this job was last seen; the only freshness signal (Ashby has no updated_at).
+      - name: workplace_type
+        description: >
+          Canonical remoteness: 'remote', 'hybrid', 'in_person', 'unknown'. From Ashby's word via
+          the workplace_type_map seed; 'unknown' when Ashby says nothing (~10%). NULL only for a
+          word the seed doesn't know - which not_null turns into a failure.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['remote', 'hybrid', 'in_person', 'unknown']
+      - name: workplace_type_raw
+        description: Ashby's own word ('Remote', 'Hybrid', 'OnSite'), or NULL when it gives none.
+      - name: location_raw
+        description: Location as written by the company (raw `location`). Free text.
+      - name: department
+        description: Department as published, e.g. 'Engineering' - the level above team.
+      - name: team
+        description: Team as published, e.g. 'Design Engineering & Mobile' - the level below department.
+      - name: published_at
+        description: When the company published the posting (a source timestamp).
+      - name: salary_min
+        description: >
+          Lower bound of the advertised pay, from the single 'Salary' compensation component.
+          CAUTION: Ashby's 'Salary' can be on-target earnings (base + bonus), not base pay -
+          see compensation_summary. Not annualised.
+      - name: salary_max
+        description: Upper bound of the advertised pay. Same caveats as salary_min.
+      - name: salary_currency
+        description: Currency of the advertised pay, ISO-4217.
+      - name: salary_interval
+        description: >
+          Canonical pay period ('year', 'month', 'week', 'hour', 'one_time', ...) via the
+          salary_interval_map seed. 'one_time' = a one-off payment, never annualised.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['year', 'month', 'semi_month', 'bi_week', 'week', 'day', 'hour', 'one_time']
+      - name: salary_interval_raw
+        description: Ashby's own interval ('1 YEAR', '1 HOUR', '1 MONTH', '1 WEEK', '1 TIME').
+      - name: compensation_summary
+        description: >
+          Ashby's human-readable pay summary - the only place base vs bonus vs equity is
+          visible (e.g. '$86.5K - Base: $51.5K; Variable Bonus: $35K').
+      - name: description_text
+        description: >
+          The job description as plain text (Ashby's descriptionPlain, stored by the loader).
+          No HTML conversion needed. Empty strings become NULL.

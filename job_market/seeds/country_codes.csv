@@ -1,0 +1,376 @@
+country_raw,country_code
+AD,AD
+AE,AE
+AF,AF
+AL,AL
+AM,AM
+AR,AR
+AT,AT
+AU,AU
+AZ,AZ
+Afghanistan,AF
+Albania,AL
+Algeria,DZ
+Andorra,AD
+Angola,AO
+Anywhere,
+Argentina,AR
+Armenia,AM
+Australia,AU
+Austria,AT
+Azerbaijan,AZ
+BA,BA
+BB,BB
+BD,BD
+BE,BE
+BF,BF
+BG,BG
+BH,BH
+BI,BI
+BJ,BJ
+BN,BN
+BO,BO
+BQ,BQ
+BR,BR
+BS,BS
+BT,BT
+BW,BW
+BY,BY
+BZ,BZ
+Bahrain,BH
+Bangladesh,BD
+Barbados,BB
+Belarus,BY
+Belgium,BE
+Belize,BZ
+Benin,BJ
+Bhutan,BT
+Bolivia,BO
+"Bolivia, Plurinational State of",BO
+Bosnia and Herzegovina,BA
+Botswana,BW
+Brasil,BR
+Brazil,BR
+Brunei Darussalam,BN
+Bulgaria,BG
+Burundi,BI
+CA,CA
+CD,CD
+CF,CF
+CG,CG
+CH,CH
+CI,CI
+CL,CL
+CM,CM
+CN,CN
+CO,CO
+CR,CR
+CV,CV
+CW,CW
+CY,CY
+CZ,CZ
+Cabo Verde,CV
+Cambodia,KH
+Cameroon,CM
+Canada,CA
+Cayman Islands,KY
+Central African Republic,CF
+Chad,TD
+Chile,CL
+China,CN
+Colombia,CO
+Congo,CG
+"Congo, The Democratic Republic of the",CD
+Costa Rica,CR
+Cote d'Ivoire,CI
+Croatia,HR
+Cyprus,CY
+Czech Republic,CZ
+Czechia,CZ
+Côte d'Ivoire,CI
+DE,DE
+DK,DK
+DO,DO
+DZ,DZ
+Denmark,DK
+Dominican Republic,DO
+EC,EC
+EE,EE
+EG,EG
+ES,ES
+ET,ET
+"EU, LATAM, Canada",
+Ecuador,EC
+Egypt,EG
+El Salvador,SV
+England,GB
+Equatorial Guinea,GQ
+Estonia,EE
+Eswatini,SZ
+Ethiopia,ET
+Europe,
+European Union,
+FI,FI
+FJ,FJ
+FR,FR
+Finland,FI
+France,FR
+"France, Metropolitan",FR
+GA,GA
+GB,GB
+GE,GE
+GG,GG
+GH,GH
+GI,GI
+GM,GM
+GQ,GQ
+GR,GR
+GT,GT
+GU,GU
+GY,GY
+Gabon,GA
+Gambia,GM
+Georgia,GE
+Germany,DE
+Ghana,GH
+Gibraltar,GI
+Greece,GR
+Guadeloupe,GP
+Guam,GU
+Guatemala,GT
+Guernsey,GG
+Guyana,GY
+HK,HK
+HN,HN
+HR,HR
+HT,HT
+HU,HU
+Haiti,HT
+Honduras,HN
+Hong Kong,HK
+Hong Kong SAR,HK
+"Hong Kong SAR, China",HK
+Hungary,HU
+ID,ID
+IE,IE
+IL,IL
+IM,IM
+IN,IN
+IQ,IQ
+IR,IR
+IS,IS
+IT,IT
+Iceland,IS
+India,IN
+Indonesia,ID
+Iraq,IQ
+Ireland,IE
+Isle of Man,IM
+Israel,IL
+Italy,IT
+Ivory Coast,CI
+JM,JM
+JO,JO
+JP,JP
+Jamaica,JM
+Japan,JP
+Jersey,JE
+Jordan,JO
+KE,KE
+KH,KH
+KR,KR
+KW,KW
+KY,KY
+KZ,KZ
+Kazakhstan,KZ
+Kenya,KE
+Korea,KR
+Kosovo,XK
+Kuwait,KW
+Kyrgyzstan,KG
+LA,LA
+LATAM,
+LB,LB
+LK,LK
+LR,LR
+LT,LT
+LU,LU
+LV,LV
+Lao People's Democratic Republic,LA
+Latin America,
+Latvia,LV
+Lebanon,LB
+Liberia,LR
+Lithuania,LT
+Luxembourg,LU
+MA,MA
+MD,MD
+ME,ME
+MG,MG
+MK,MK
+MM,MM
+MN,MN
+MO,MO
+MT,MT
+MU,MU
+MX,MX
+MY,MY
+MZ,MZ
+Macao,MO
+Madagascar,MG
+Malaysia,MY
+Malta,MT
+Martinique,MQ
+Mauritius,MU
+Mayotte,YT
+Mexico,MX
+Moldova,MD
+Monaco,MC
+Mongolia,MN
+Montenegro,ME
+Morocco,MA
+Mozambique,MZ
+Myanmar,MM
+México,MX
+NA,NA
+NC,NC
+NG,NG
+NI,NI
+NL,NL
+NO,NO
+NP,NP
+NZ,NZ
+Namibia,NA
+Nepal,NP
+Netherlands,NL
+New Zealand,NZ
+Nicaragua,NI
+Nigeria,NG
+North America,
+North Macedonia,MK
+Norway,NO
+OM,OM
+Oman,OM
+PA,PA
+PE,PE
+PF,PF
+PH,PH
+PK,PK
+PL,PL
+PR,PR
+PT,PT
+PY,PY
+Pakistan,PK
+Panama,PA
+Paraguay,PY
+People's Republic of China,CN
+Peru,PE
+Philippines,PH
+Poland,PL
+Portugal,PT
+Puerto Rico,PR
+QA,QA
+Qatar,QA
+RO,RO
+RS,RS
+RU,RU
+RW,RW
+Remote,
+Remote - EMEA,
+Remote - Global,
+Remote - South America,
+Reunion,RE
+Romania,RO
+Russia,RU
+Rwanda,RW
+Réunion,RE
+SA,SA
+SB,SB
+SC,SC
+SD,SD
+SE,SE
+SG,SG
+SH,SH
+SI,SI
+SK,SK
+SL,SL
+SM,SM
+SN,SN
+SO,SO
+SR,SR
+SS,SS
+ST,ST
+SV,SV
+SY,SY
+SZ,SZ
+San Marino,SM
+Sao Tome and Principe,ST
+Saudi Arabia,SA
+Senegal,SN
+Serbia,RS
+Seychelles,SC
+Sierra Leone,SL
+Singapore,SG
+Slovakia,SK
+Slovenia,SI
+Somalia,SO
+South Africa,ZA
+South Korea,KR
+South Sudan,SS
+Spain,ES
+Sri Lanka,LK
+Sudan,SD
+Sweden,SE
+Switzerland,CH
+Syrian Arab Republic,SY
+TD,TD
+TG,TG
+TH,TH
+TN,TN
+TR,TR
+TT,TT
+TW,TW
+TZ,TZ
+Taiwan,TW
+Tanzania,TZ
+"Tanzania, United Republic of",TZ
+Thailand,TH
+Togo,TG
+Trinidad and Tobago,TT
+Tunisia,TN
+Turkey,TR
+Turkiye,TR
+Türkiye,TR
+U.S.,US
+U.S.A,US
+UA,UA
+UG,UG
+UK,GB
+US,US
+USA,US
+UY,UY
+UZ,UZ
+Uganda,UG
+Ukraine,UA
+United Arab Emirates,AE
+United Kingdom,GB
+United States,US
+United States of America,US
+Uruguay,UY
+Uzbekistan,UZ
+VE,VE
+VG,VG
+VN,VN
+Venezuela,VE
+"Venezuela, Bolivarian Republic of",VE
+Vietnam,VN
+XK,XK
+YE,YE
+Yemen,YE
+ZA,ZA
+ZM,ZM
+ZW,ZW
+Zambia,ZM
+Zimbabwe,ZW
+anywhere,
+europa,

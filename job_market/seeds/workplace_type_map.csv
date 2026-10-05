@@ -1,0 +1,8 @@
+source,workplace_type_raw,workplace_type
+lever,remote,remote
+lever,hybrid,hybrid
+lever,onsite,in_person
+lever,unspecified,unknown
+ashby,Remote,remote
+ashby,Hybrid,hybrid
+ashby,OnSite,in_person
