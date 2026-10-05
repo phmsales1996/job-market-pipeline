@@ -1,0 +1,12 @@
+source,salary_interval_raw,salary_interval
+lever,per-year-salary,year
+lever,per-month-salary,month
+lever,semi-month-salary,semi_month
+lever,bi-week-salary,bi_week
+lever,per-day-wage,day
+lever,per-hour-wage,hour
+ashby,1 YEAR,year
+ashby,1 MONTH,month
+ashby,1 WEEK,week
+ashby,1 HOUR,hour
+ashby,1 TIME,one_time

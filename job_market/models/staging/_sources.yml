@@ -1,0 +1,19 @@
+sources:
+  - name: raw
+    schema: dev_raw
+    config:
+      loaded_at_field: last_seen_at
+      freshness:
+        warn_after: {count: 30, period: hour}
+        error_after:
+          count: 48
+          period: hour
+    tables:
+      - name: ashby_postings
+      - name: greenhouse_postings
+      - name: lever_postings
+      - name: recruitee_postings
+      - name: teamtailor_postings
+      - name: workable_postings
+    
+    
