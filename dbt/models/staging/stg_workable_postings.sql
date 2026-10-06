@@ -40,25 +40,13 @@ renamed as (
         s.salary_currency,
         s.salary_frequency as salary_interval_raw,
         sm.salary_interval,
-        {{ html_to_text('s.content') }} as content_text,
-        {{ html_to_text('s.requirements') }} as requirements_text,
-        {{ html_to_text('s.benefits') }} as benefits_text
+        nullif({{ html_to_text('s.content') }}, '') as description_text
     from
         source s
     left join workplace_map wm on wm.source = 'workable' and s.workplace = wm.workplace_type_raw
     left join salary_interval_map sm on sm.source = 'workable' and s.salary_frequency = sm.salary_interval_raw
     left join country_codes cc on cc.country_raw = trim(s.country_code)
-),
-assembled as (
-    select
-        * except (content_text, requirements_text, benefits_text),
-        nullif(array_to_string([
-            nullif(content_text, ''),
-            nullif(requirements_text, ''),
-            nullif(benefits_text, '')
-        ], '\n\n'), '') as description_text
-    from renamed
 )
 
 
-select * from assembled
+select * from renamed

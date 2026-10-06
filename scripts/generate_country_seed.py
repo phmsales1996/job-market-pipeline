@@ -41,6 +41,7 @@ COUNTRY_COLUMNS = [
 # Observed spellings the ISO names don't cover. Keys are compared case-insensitively.
 ALIASES = {
     "brasil": "BR",
+    "svalbard and jan mayen":"SJ",
     "uk": "GB",
     "england": "GB",
     "scotland": "GB",
