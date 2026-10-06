@@ -429,11 +429,12 @@ models:
       One row per Workable job posting, current state - the same grain as
       raw.workable_postings. Renames Workable's columns to the canonical names and translates
       its vocabulary through the seeds (workplace, salary interval, country). Translates,
-      never filters. Workable is the one source read in two requests: the LIST gives the
-      basics for every posting, the DETAIL (fetched gradually, a few postings per night) gives
-      the description, the salary, the language and the best workplace field. Columns that
-      come from the detail are NULL until a posting's detail has been fetched - 650 of 28,475
-      postings had one on 2026-10-05.
+      never filters. Workable has two endpoints. The LIST gives the basics for every posting
+      and, since 2026-10-06, the full description (asked with ?details=true). The DETAIL has
+      what the list lacks - salary, language and the workplace word - but its rate limit
+      (about 300 requests, then blocked for hours) cannot keep up with ~660 new postings a
+      night, so it is not called at the moment. Those columns are filled only for the 650
+      postings fetched before the switch and are NULL for the rest.
     columns:
       - name: source
         description: Always 'workable'. Half of the canonical key (source, source_job_id).
@@ -461,7 +462,8 @@ models:
       - name: workplace_type_raw
         description: >
           Workable's own word for remoteness from the DETAIL (raw `workplace`): 'on_site',
-          'hybrid', 'remote'. NULL until the posting's detail has been fetched.
+          'hybrid', 'remote'. NULL unless the posting's detail was fetched (not requested
+          since 2026-10-06).
       - name: workplace_type
         description: >
           Canonical remoteness: 'remote', 'hybrid', 'in_person', 'unknown'. Built in order of
@@ -470,8 +472,9 @@ models:
           Evidence (2026-10-05, the 650 postings with both fields): telecommuting = true was
           'remote' 152 times out of 152, but telecommuting = false was 'on_site' 349 times and
           'hybrid' 149 - so false alone cannot tell the two apart, and 'in_person' would be
-          wrong for about 3 in 10. Those postings move from 'unknown' to their real value the
-          night their detail arrives. NULL only for a detail word the seed does not know.
+          wrong for about 3 in 10. With details switched off, these postings stay 'unknown':
+          remote is still found, hybrid and on-site are not told apart. NULL only for a detail
+          word the seed does not know.
         data_tests:
           - not_null
           - accepted_values:
@@ -509,7 +512,7 @@ models:
       - name: job_function
         description: Job function as published (Workable's `function`). Workable's own taxonomy.
       - name: language
-        description: Posting language from the DETAIL, e.g. 'en'. NULL until the detail has been fetched.
+        description: Posting language from the DETAIL, e.g. 'en'. NULL unless the detail was fetched (not requested since 2026-10-06).
       - name: published_at
         description: >
           When the company published the posting. Workable gives a DATE only (raw
@@ -517,9 +520,9 @@ models:
           same type: the precision is one day, not one second.
       - name: salary_min
         description: >
-          Lower bound of the advertised pay, from the DETAIL. NULL without a detail, and for
-          most postings with one (about 1 in 5 details carries a salary). Not annualised - see
-          salary_interval.
+          Lower bound of the advertised pay, from the DETAIL. NULL without a detail (not
+          requested since 2026-10-06), and for most postings with one (about 1 in 5 details
+          carries a salary). Not annualised - see salary_interval.
       - name: salary_max
         description: Upper bound of the advertised pay. Same caveats as salary_min.
       - name: salary_currency
@@ -540,8 +543,11 @@ models:
                 values: ['year', 'month', 'semi_month', 'bi_week', 'week', 'day', 'hour', 'one_time']
       - name: description_text
         description: >
-          The full job text as plain text, in the order of Workable's job page: description,
-          requirements, benefits - joined by blank lines, missing sections skipped. Each
-          section is converted from HTML by the html_to_text macro. NULL until the posting's
-          detail has been fetched.
+          The full job text as plain text, converted by the html_to_text macro from raw
+          `content`: the description the LIST returns, which already contains the
+          requirements and benefits sections (checked on one job: 2,104 characters against
+          2,036 for the detail's three sections added together). The raw `requirements` and
+          `benefits` columns are deliberately not used - for the 650 postings fetched the old
+          way they would repeat text that is now inside `content`. NULL for a posting not
+          seen in a list since 2026-10-06 and never fetched in detail.
 
