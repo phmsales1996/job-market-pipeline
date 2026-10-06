@@ -9,14 +9,17 @@ from ingestion import ats
 
 logger = logging.getLogger(__name__)
 
-LIST_URL = "https://apply.workable.com/api/v1/widget/accounts/{slug}"
+LIST_URL = "https://apply.workable.com/api/v1/widget/accounts/{slug}?details=true"
 DETAIL_URL = "https://apply.workable.com/api/v1/accounts/{slug}/jobs/{shortcode}"
 
-# Workable's job list has no description: the text needs one more request per job. Fetching
-# it for every job every night would be ~29k requests (~3h), so details are fetched only for
-# jobs whose detail we do not have - and at most this many per run. The first nights work
-# through the backlog; after that a night needs only the new jobs.
-MAX_DETAILS_PER_RUN = 3000
+# The list request returns each job's full description when asked with ?details=true (see
+# LIST_URL), so the text no longer needs a request per job. The detail endpoint still has
+# things the list lacks (salary, the workplace word, language), but it allows only ~300
+# requests before answering 429 for hours, while ~660 new postings arrive per night - it can
+# never catch up. So detail requests are switched off: with a budget of 0,
+# shortcodes_to_detail returns nothing and no detail is requested (2026-10-06). The code
+# below is kept for a later, separate DAG that fetches details for chosen jobs only.
+MAX_DETAILS_PER_RUN = 0
 # A detail older than this is fetched again, so edited descriptions are eventually picked up.
 DETAIL_MAX_AGE_DAYS = 30
 

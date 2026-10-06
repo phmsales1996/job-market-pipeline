@@ -5,9 +5,11 @@ USING (
     QUALIFY ROW_NUMBER() OVER (PARTITION BY id ORDER BY landed_at DESC) = 1
 ) AS S
 ON T.id = S.id
--- List columns follow the newest file. Detail columns change only when this file carried a
--- detail response (has_detail): most nights fetch none for a known job, and a plain
--- "newest wins" would overwrite last week's description with NULL.
+-- List columns follow the newest file - including the description (content), which the
+-- list request returns with ?details=true. Detail columns (workplace, language, requirements,
+-- benefits, salary) change only when this file carried a detail response (has_detail): no
+-- detail is requested at the moment, and a plain "newest wins" would overwrite the values
+-- fetched earlier with NULL.
 WHEN MATCHED and T.last_seen_at < S.last_seen_at THEN
     UPDATE SET
     T.title = S.title,
@@ -25,9 +27,9 @@ WHEN MATCHED and T.last_seen_at < S.last_seen_at THEN
     T.job_function = S.job_function,
     T.published_on = S.published_on,
     T.raw = S.raw,
+    T.content = S.content,
     T.workplace = IF(S.has_detail, S.workplace, T.workplace),
     T.language = IF(S.has_detail, S.language, T.language),
-    T.content = IF(S.has_detail, S.content, T.content),
     T.requirements = IF(S.has_detail, S.requirements, T.requirements),
     T.benefits = IF(S.has_detail, S.benefits, T.benefits),
     T.salary_min = IF(S.has_detail, S.salary_min, T.salary_min),
