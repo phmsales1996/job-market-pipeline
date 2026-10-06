@@ -424,3 +424,124 @@ models:
           the html_to_text macro. The full posting, not a summary. NULL for the few postings
           with no text once the markup is removed (7 on 2026-10-05).
 
+  - name: stg_workable_postings
+    description: >
+      One row per Workable job posting, current state - the same grain as
+      raw.workable_postings. Renames Workable's columns to the canonical names and translates
+      its vocabulary through the seeds (workplace, salary interval, country). Translates,
+      never filters. Workable is the one source read in two requests: the LIST gives the
+      basics for every posting, the DETAIL (fetched gradually, a few postings per night) gives
+      the description, the salary, the language and the best workplace field. Columns that
+      come from the detail are NULL until a posting's detail has been fetched - 650 of 28,475
+      postings had one on 2026-10-05.
+    columns:
+      - name: source
+        description: Always 'workable'. Half of the canonical key (source, source_job_id).
+      - name: source_job_id
+        description: >
+          Workable's job shortcode (raw `id`), e.g. 'F8C64DEEC8'. Unique within Workable.
+        data_tests:
+          - not_null
+          - unique
+      - name: title
+        description: Job title as published. Not cleaned.
+        data_tests:
+          - not_null
+      - name: job_url
+        description: Public URL of the posting (raw `url`).
+        data_tests:
+          - not_null
+      - name: first_seen_at
+        description: Pipeline timestamp - when this job first appeared in a landed file.
+      - name: last_seen_at
+        description: >
+          Pipeline timestamp - when this job was last seen in a landed file. The only
+          freshness signal for Workable (it publishes no updated_at), and the column the
+          source freshness check uses.
+      - name: workplace_type_raw
+        description: >
+          Workable's own word for remoteness from the DETAIL (raw `workplace`): 'on_site',
+          'hybrid', 'remote'. NULL until the posting's detail has been fetched.
+      - name: workplace_type
+        description: >
+          Canonical remoteness: 'remote', 'hybrid', 'in_person', 'unknown'. Built in order of
+          trust: (1) the detail's word, translated through the workplace_type_map seed;
+          (2) with no detail, telecommuting = true -> 'remote'; (3) otherwise 'unknown'.
+          Evidence (2026-10-05, the 650 postings with both fields): telecommuting = true was
+          'remote' 152 times out of 152, but telecommuting = false was 'on_site' 349 times and
+          'hybrid' 149 - so false alone cannot tell the two apart, and 'in_person' would be
+          wrong for about 3 in 10. Those postings move from 'unknown' to their real value the
+          night their detail arrives. NULL only for a detail word the seed does not know.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['remote', 'hybrid', 'in_person', 'unknown']
+      - name: telecommuting
+        description: >
+          Workable's remote flag from the LIST (present for every posting). Kept beside
+          workplace_type_raw because it is the second input of workplace_type.
+      - name: country_raw
+        description: >
+          Workable's ISO-3166 alpha-2 code as sent (raw `country_code`, the first listed
+          location). Workable also sends the country as a name; the code is used because it
+          needs no translation and is filled for all but one posting.
+      - name: country_code
+        description: >
+          ISO-3166 alpha-2. Already a code at the source: the join to the country_codes seed
+          (which lists every code as its own identity row) only confirms it is a real one.
+          NULL when the posting has no country, or sends a code the seed does not know.
+      - name: department
+        description: Department as published. Filled for about 78% of postings.
+      - name: employment_type_raw
+        description: >
+          Workable's own employment type ('Full-time', 'Contract', 'Part-time', 'Other',
+          'Temporary'). Not mapped: there is no canonical employment_type until its seed
+          exists.
+      - name: experience
+        description: >
+          Seniority as published, e.g. 'Director', 'Mid-Senior level'. Workable's own
+          taxonomy and the only seniority field among the sources. Filled for about 56%.
+      - name: education
+        description: Required education as published, e.g. "Bachelor's Degree". Workable's own taxonomy.
+      - name: industry
+        description: Industry as published. Workable's own taxonomy.
+      - name: job_function
+        description: Job function as published (Workable's `function`). Workable's own taxonomy.
+      - name: language
+        description: Posting language from the DETAIL, e.g. 'en'. NULL until the detail has been fetched.
+      - name: published_at
+        description: >
+          When the company published the posting. Workable gives a DATE only (raw
+          `published_on`), converted to a timestamp at midnight UTC so every source has the
+          same type: the precision is one day, not one second.
+      - name: salary_min
+        description: >
+          Lower bound of the advertised pay, from the DETAIL. NULL without a detail, and for
+          most postings with one (about 1 in 5 details carries a salary). Not annualised - see
+          salary_interval.
+      - name: salary_max
+        description: Upper bound of the advertised pay. Same caveats as salary_min.
+      - name: salary_currency
+        description: Currency of the advertised pay, ISO-4217.
+      - name: salary_interval_raw
+        description: >
+          Workable's own word for the pay period (raw `salary_frequency`), kept untouched next
+          to the translation. Observed 2026-10-05: only 'year'.
+      - name: salary_interval
+        description: >
+          Canonical pay period, translated through the salary_interval_map seed (keyed on
+          source + raw value). Only 'year' is in the seed for Workable, because it is the only
+          word seen so far: a new word comes out NULL here and fails
+          assert_workable_salary_interval_mapped, which is the signal to add it.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['year', 'month', 'semi_month', 'bi_week', 'week', 'day', 'hour', 'one_time']
+      - name: description_text
+        description: >
+          The full job text as plain text, in the order of Workable's job page: description,
+          requirements, benefits - joined by blank lines, missing sections skipped. Each
+          section is converted from HTML by the html_to_text macro. NULL until the posting's
+          detail has been fetched.
+
