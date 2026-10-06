@@ -11,8 +11,8 @@ from datetime import timedelta
         "retries": 2,
         "on_failure_callback": alerts.alert_on_failure,
         "retry_delay": timedelta(minutes=5),
-        # ~1,000 boards (list request each) plus up to MAX_DETAILS_PER_RUN (3,000) detail
-        # requests at ~0.4 s: ~8 + ~20 min extract. Load ~30k rows. Tighten after real runs.
+        # ~1,000 boards, one list request each (with descriptions, up to ~1 MB a board) and
+        # no detail requests: extract ~10-15 min. Load ~30k rows. Tighten after real runs.
         "execution_timeout": timedelta(minutes=90),
     }
 )

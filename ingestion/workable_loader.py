@@ -36,7 +36,7 @@ def transform(entries: list[dict], detail: dict | None) -> dict:
     transformed_job["has_detail"] = bool(detail)
     transformed_job["workplace"] = detail.get("workplace")
     transformed_job["language"] = detail.get("language")
-    transformed_job["content"] = detail.get("description")
+    transformed_job["content"] = job.get("description") or None
     transformed_job["requirements"] = detail.get("requirements")
     transformed_job["benefits"] = detail.get("benefits")
     transformed_job["salary_min"] = detail.get("salary_from")

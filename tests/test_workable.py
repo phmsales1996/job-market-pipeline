@@ -5,7 +5,7 @@ JOB = {"shortcode": "AAA", "title": "Engineer", "url": "https://apply.workable.c
        "city": "Torrington", "state": "Connecticut", "country": "United States",
        "locations": [{"countryCode": "US"}], "telecommuting": False, "department": None,
        "employment_type": "Full-time", "education": "", "experience": "Director",
-       "industry": "Manufacturing", "function": "", "published_on": "2026-09-01"}
+       "industry": "Manufacturing", "function": "", "published_on": "2026-09-01", "description": "<p>full text</p>"}
 DETAIL = {"shortcode": "AAA", "description": "<p>d</p>", "requirements": "<p>r</p>",
           "benefits": "<p>b</p>", "workplace": "hybrid", "language": "en",
           "salary_from": 200000, "salary_to": 250000, "salary_currency_iso_code": "USD",
@@ -36,17 +36,18 @@ def test_transform_with_detail():
     assert row["country_code"] == "US"
     assert row["experience"] == "Director"
     assert row["has_detail"] is True
-    assert row["content"] == "<p>d</p>"
+    assert row["content"] == "<p>full text</p>"
     assert row["salary_min"] == 200000
     assert row["salary_frequency"] == "year"
     assert json.loads(row["raw_detail"]) == DETAIL
 
 def test_transform_without_detail_marks_it():
-    # No detail this run: detail columns NULL *and* has_detail False, so the MERGE keeps the
-    # existing values. If has_detail were True here, last week's description would be blanked.
+    # No detail this run: has_detail False, so the MERGE keeps the detail columns already in
+    # the table (salary, workplace, language). The description is not one of them any more:
+    # it comes from the list entry (?details=true), so it is filled with or without a detail.
     row = workable_loader.transform([JOB], None)
     assert row["has_detail"] is False
-    assert row["content"] is None and row["raw_detail"] is None
+    assert row["content"] == "<p>full text</p>" and row["raw_detail"] is None
     assert row["title"] == "Engineer"          # list columns still filled
 
 def test_transform_empty_strings_become_null():
