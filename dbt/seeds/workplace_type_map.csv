@@ -11,3 +11,6 @@ teamtailor,hybrid,hybrid
 teamtailor,onsite,in_person
 teamtailor,none,in_person
 teamtailor,temporary,hybrid
+workable,on_site,in_person
+workable,hybrid,hybrid
+workable,remote,remote
