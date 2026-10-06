@@ -8,6 +8,7 @@ ON T.id = S.id
 WHEN MATCHED and T.last_seen_at < S.last_seen_at THEN
     UPDATE SET
     T.title = S.title,
+    T.company_slug = S.company_slug,
     T.url = S.url,
     T.location = S.location,
     T.department = S.department,
@@ -29,5 +30,5 @@ WHEN MATCHED and T.first_seen_at > S.first_seen_at THEN
     UPDATE SET
     T.first_seen_at = S.first_seen_at
 WHEN NOT MATCHED THEN
-    INSERT (id, title, url, location, department, workplace_type, country, team, employment_type, is_listed, compensation_summary, content, salary_min, salary_max, salary_currency, salary_interval, published_at, raw, first_seen_at, last_seen_at)
-    VALUES (S.id, S.title, S.url, S.location, S.department, S.workplace_type, S.country, S.team, S.employment_type, S.is_listed, S.compensation_summary, S.content, S.salary_min, S.salary_max, S.salary_currency, S.salary_interval, S.published_at, S.raw, S.first_seen_at, S.last_seen_at)
+    INSERT (id, title, company_slug, url, location, department, workplace_type, country, team, employment_type, is_listed, compensation_summary, content, salary_min, salary_max, salary_currency, salary_interval, published_at, raw, first_seen_at, last_seen_at)
+    VALUES (S.id, S.title, S.company_slug, S.url, S.location, S.department, S.workplace_type, S.country, S.team, S.employment_type, S.is_listed, S.compensation_summary, S.content, S.salary_min, S.salary_max, S.salary_currency, S.salary_interval, S.published_at, S.raw, S.first_seen_at, S.last_seen_at)
