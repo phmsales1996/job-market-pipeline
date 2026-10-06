@@ -12,6 +12,7 @@ CREATE TABLE `dev_raw.greenhouse_postings_incoming` (
     published_at TIMESTAMP OPTIONS(description="When the posting was first published, as reported by the source ('first_published'). A source timestamp, not a pipeline one."),
     deadline_at TIMESTAMP OPTIONS(description="Application deadline as reported by the source ('application_deadline'). Usually null: most postings have none."),
     raw STRING NOT NULL OPTIONS(description="The complete original API object for this posting, as JSON text. Kept so any field dropped or flattened above can be recovered without re-fetching."),
+    company_slug STRING OPTIONS(description="The board this row's file was fetched from (the slug in the landed file's path). Stamped by the loader; the MERGE copies it to the raw table. See the raw table's company_slug."),
     first_seen_at TIMESTAMP NOT NULL OPTIONS(description="Landing time of the file this row came from. In staging it equals landed_at and last_seen_at; the MERGE decides what reaches the final table."),
     last_seen_at TIMESTAMP NOT NULL OPTIONS(description="Landing time of the file this row came from. Compared against the final table's last_seen_at by the MERGE, so older files cannot overwrite newer rows."),
     landed_at TIMESTAMP NOT NULL OPTIONS(description="When the GCS file this row came from was created (the object's time_created). Ties every row back to one landed file: used to deduplicate (newest file wins per id) and by the C2 check to prove staging was rebuilt from this day's files."),

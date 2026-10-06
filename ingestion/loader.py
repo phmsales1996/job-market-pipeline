@@ -92,10 +92,12 @@ def run_load(source: str, parse_fn: Callable[[bytes], list[dict]], date: str) ->
         # The three timestamps belong to the pipeline, not to the source, so they are
         # stamped here: one format, one place, identical for every ATS.
         landed_at = file.time_created.isoformat()
+        company = slug_from_path(file.name)
         for row in rows:
             row["landed_at"] = landed_at
             row["first_seen_at"] = landed_at
             row["last_seen_at"] = landed_at
+            row["company_slug"] = company
         batch.extend(rows)
         if len(batch) >= BATCH_ROWS:
             load_rows(source, batch, write_disposition="WRITE_APPEND")
@@ -118,3 +120,11 @@ def run_load(source: str, parse_fn: Callable[[bytes], list[dict]], date: str) ->
     return {"date": date, "source": source, "files_read": files_read,
             "files_with_rows": files_with_rows, "rows_loaded": rows_loaded,
             "load_jobs": load_jobs}
+
+def slug_from_path(path: str) -> str:
+    """The company slug from a landed file's path: <source>/ingest_date=<date>/<slug>/<time>.<ext>.
+
+    The path is the only place the slug survives: most sources do not repeat the company
+    inside each posting, so without this a loaded row cannot say which board it came from.
+    """
+    return path.split("/")[2]

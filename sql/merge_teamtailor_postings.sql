@@ -8,6 +8,7 @@ ON T.id = S.id
 WHEN MATCHED and T.last_seen_at < S.last_seen_at THEN
     UPDATE SET
     T.title = S.title,
+    T.company_slug = S.company_slug,
     T.url = S.url,
     T.location = S.location,
     T.city = S.city,
@@ -23,5 +24,5 @@ WHEN MATCHED and T.first_seen_at > S.first_seen_at THEN
     UPDATE SET
     T.first_seen_at = S.first_seen_at
 WHEN NOT MATCHED THEN
-    INSERT (id, title, url, location, city, country, remote_status, department, role, content, published_at, raw, first_seen_at, last_seen_at)
-    VALUES (S.id, S.title, S.url, S.location, S.city, S.country, S.remote_status, S.department, S.role, S.content, S.published_at, S.raw, S.first_seen_at, S.last_seen_at)
+    INSERT (id, title, company_slug, url, location, city, country, remote_status, department, role, content, published_at, raw, first_seen_at, last_seen_at)
+    VALUES (S.id, S.title, S.company_slug, S.url, S.location, S.city, S.country, S.remote_status, S.department, S.role, S.content, S.published_at, S.raw, S.first_seen_at, S.last_seen_at)

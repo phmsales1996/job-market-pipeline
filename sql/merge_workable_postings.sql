@@ -13,6 +13,7 @@ ON T.id = S.id
 WHEN MATCHED and T.last_seen_at < S.last_seen_at THEN
     UPDATE SET
     T.title = S.title,
+    T.company_slug = S.company_slug,
     T.url = S.url,
     T.city = S.city,
     T.region = S.region,
@@ -43,5 +44,5 @@ WHEN MATCHED and T.first_seen_at > S.first_seen_at THEN
     UPDATE SET
     T.first_seen_at = S.first_seen_at
 WHEN NOT MATCHED THEN
-    INSERT (id, title, url, city, region, country, country_code, telecommuting, department, employment_type, education, experience, industry, job_function, published_on, raw, workplace, language, content, requirements, benefits, salary_min, salary_max, salary_currency, salary_frequency, raw_detail, detail_fetched_at, first_seen_at, last_seen_at)
-    VALUES (S.id, S.title, S.url, S.city, S.region, S.country, S.country_code, S.telecommuting, S.department, S.employment_type, S.education, S.experience, S.industry, S.job_function, S.published_on, S.raw, S.workplace, S.language, S.content, S.requirements, S.benefits, S.salary_min, S.salary_max, S.salary_currency, S.salary_frequency, S.raw_detail, IF(S.has_detail, S.last_seen_at, NULL), S.first_seen_at, S.last_seen_at)
+    INSERT (id, title, company_slug, url, city, region, country, country_code, telecommuting, department, employment_type, education, experience, industry, job_function, published_on, raw, workplace, language, content, requirements, benefits, salary_min, salary_max, salary_currency, salary_frequency, raw_detail, detail_fetched_at, first_seen_at, last_seen_at)
+    VALUES (S.id, S.title, S.company_slug, S.url, S.city, S.region, S.country, S.country_code, S.telecommuting, S.department, S.employment_type, S.education, S.experience, S.industry, S.job_function, S.published_on, S.raw, S.workplace, S.language, S.content, S.requirements, S.benefits, S.salary_min, S.salary_max, S.salary_currency, S.salary_frequency, S.raw_detail, IF(S.has_detail, S.last_seen_at, NULL), S.first_seen_at, S.last_seen_at)
