@@ -93,7 +93,7 @@ ALIASES = {
 NOT_A_COUNTRY = {
     "anywhere", "europe", "europa", "european union", "latam", "latin america",
     "north america", "eu, latam, canada", "remote", "remote - emea", "remote - global",
-    "remote - south america",
+    "remote - south america", "us | eu",
 }
 
 

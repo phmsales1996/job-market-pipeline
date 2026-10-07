@@ -23,7 +23,8 @@ renamed as (
         s.role,
         s.department,
         s.published_at,
-        nullif({{ html_to_text('s.content') }}, '') as description_text
+        nullif({{ html_to_text('s.content') }}, '') as description_text,
+        s.company_slug
     from
         source s
     left join workplace_map wm on wm.source = 'teamtailor' and s.remote_status = wm.workplace_type_raw
