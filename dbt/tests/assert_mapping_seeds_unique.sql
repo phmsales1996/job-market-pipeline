@@ -19,3 +19,10 @@ select 'country_codes', country_raw, count(*)
 from {{ ref('country_codes') }}
 group by 1, 2
 having count(*) > 1
+
+union all
+
+select 'us_states', state_raw, count(*)
+from {{ ref('us_states') }}
+group by 1, 2
+having count(*) > 1

@@ -41,7 +41,8 @@ renamed as (
         sm.salary_interval,
         {{ html_to_text('s.highlight') }} as highlight_text,
         {{ html_to_text('s.content') }} as content_text,
-        {{ html_to_text('s.requirements') }} as requirements_text
+        {{ html_to_text('s.requirements') }} as requirements_text,
+        s.company_slug
     from source s
     left join salary_interval_map sm on sm.source = 'recruitee' and sm.salary_interval_raw = s.salary_period
     left join country_codes cc on cc.country_raw = trim(s.country_code)

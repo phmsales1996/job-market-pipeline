@@ -124,6 +124,18 @@ models:
           every piece is empty (40 postings). Measured 2026-10-04: no leftover tags (tested
           by assert_lever_description_text_clean); 6 postings keep an entity (double-escaped
           in the source, decoded once by design).
+      - name: company_slug
+        description: >
+          The board this posting was fetched from: the company's identifier on Lever,
+          equal to external_id in the companies registry (raw.companies, with ats = 'lever').
+          Not sent by the source - stamped by the loader from the landed file's path.
+          NULL for a posting that closed before 2026-10-06, when the stamping started: the
+          nightly merge only updates postings still listed. So not_null is a warning whose
+          count should only shrink as a share - every new posting arrives with its slug.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
 
   - name: stg_ashby_postings
     description: >
@@ -205,6 +217,18 @@ models:
         description: >
           The job description as plain text (Ashby's descriptionPlain, stored by the loader).
           No HTML conversion needed. Empty strings become NULL.
+      - name: company_slug
+        description: >
+          The board this posting was fetched from: the company's identifier on Ashby,
+          equal to external_id in the companies registry (raw.companies, with ats = 'ashby').
+          Not sent by the source - stamped by the loader from the landed file's path.
+          NULL for a posting that closed before 2026-10-06, when the stamping started: the
+          nightly merge only updates postings still listed. So not_null is a warning whose
+          count should only shrink as a share - every new posting arrives with its slug.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
 
   - name: stg_recruitee_postings
     description: >
@@ -339,6 +363,18 @@ models:
           the few postings whose sections hold no text once the markup is removed (4 on
           2026-10-05). 0.6% carry stray literal markup the company pasted in - counted, as
           a warning, by assert_recruitee_description_text_clean.
+      - name: company_slug
+        description: >
+          The board this posting was fetched from: the company's identifier on Recruitee,
+          equal to external_id in the companies registry (raw.companies, with ats = 'recruitee').
+          Not sent by the source - stamped by the loader from the landed file's path.
+          NULL for a posting that closed before 2026-10-06, when the stamping started: the
+          nightly merge only updates postings still listed. So not_null is a warning whose
+          count should only shrink as a share - every new posting arrives with its slug.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
 
   - name: stg_teamtailor_postings
     description: >
@@ -423,6 +459,18 @@ models:
           The job description as plain text, converted from Teamtailor's single HTML field by
           the html_to_text macro. The full posting, not a summary. NULL for the few postings
           with no text once the markup is removed (7 on 2026-10-05).
+      - name: company_slug
+        description: >
+          The board this posting was fetched from: the company's identifier on Teamtailor,
+          equal to external_id in the companies registry (raw.companies, with ats = 'teamtailor').
+          Not sent by the source - stamped by the loader from the landed file's path.
+          NULL for a posting that closed before 2026-10-06, when the stamping started: the
+          nightly merge only updates postings still listed. So not_null is a warning whose
+          count should only shrink as a share - every new posting arrives with its slug.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
 
   - name: stg_workable_postings
     description: >
@@ -550,4 +598,128 @@ models:
           `benefits` columns are deliberately not used - for the 650 postings fetched the old
           way they would repeat text that is now inside `content`. NULL for a posting not
           seen in a list since 2026-10-06 and never fetched in detail.
+      - name: company_slug
+        description: >
+          The board this posting was fetched from: the company's identifier on Workable,
+          equal to external_id in the companies registry (raw.companies, with ats = 'workable').
+          Not sent by the source - stamped by the loader from the landed file's path.
+          NULL for a posting that closed before 2026-10-06, when the stamping started: the
+          nightly merge only updates postings still listed. So not_null is a warning whose
+          count should only shrink as a share - every new posting arrives with its slug.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
 
+  - name: stg_greenhouse_postings
+    description: >
+      One row per Greenhouse job posting, current state - the same grain as
+      raw.greenhouse_postings. Greenhouse is the largest source and the one that says least in
+      structured fields: it has no workplace field and no country field, only a free-text
+      location. So two columns here are DERIVED from that text rather than translated
+      (workplace_type, country_code), each with a deliberately narrow rule that prefers "not
+      stated" to a guess. No salary and no employment type. Translates, never filters.
+    columns:
+      - name: source
+        description: Always 'greenhouse'. Half of the canonical key (source, source_job_id).
+      - name: source_job_id
+        description: >
+          Greenhouse's own posting id (raw `id`), an integer cast to STRING so the key has one
+          type across sources. Unique within Greenhouse.
+        data_tests:
+          - not_null
+          - unique
+      - name: title
+        description: >
+          Job title as published, with leading and trailing spaces removed (about 1 in 10
+          titles has one). Not otherwise cleaned.
+        data_tests:
+          - not_null
+      - name: job_url
+        description: Public URL of the posting on the company's Greenhouse board (raw `url`).
+        data_tests:
+          - not_null
+      - name: company
+        description: >
+          Company name as Greenhouse reports it, e.g. 'GitLab'. The only source whose payload
+          repeats the company in every posting.
+        data_tests:
+          - not_null
+      - name: location_raw
+        description: >
+          Location as the company wrote it (raw `location`), e.g. 'Remote - US',
+          'San Francisco, CA', 'London'. Free text, not normalised. The only input of
+          workplace_type and country_code for this source.
+      - name: country_code
+        description: >
+          ISO-3166 alpha-2, DERIVED from the location text - Greenhouse sends no country. Rule:
+          take the last piece of the text (split on commas, ' - ', ';' and '•') and accept it
+          when (1) it is a country name the country_codes seed knows, or (2) it is 'US' or
+          'UK', or (3) it is a US state code or name (us_states seed) -> 'US'. Any other
+          two-letter piece is refused on purpose: US state codes collide with ISO codes ('CA'
+          is California here, not Canada; 'MA' is Massachusetts, not Morocco), and a wrong
+          code would pass every test. Covers about 66% of postings (2026-10-07). NULL when
+          the text ends in a bare city ('London', 'Chicago'), a region, or 'Remote'. Known
+          flaw: 'Georgia' is read as the country, also for the few Atlanta postings.
+      - name: country_raw
+        description: >
+          The piece of the location text that matched the country_codes seed: a country name
+          ('United States'), 'US' / 'UK', or a known non-country such as 'Remote' or
+          'Latin America' (then country_code is NULL). NULL when nothing matched, and when
+          the country came from a US state.
+      - name: workplace_type_raw
+        description: >
+          Always NULL: Greenhouse has no workplace field. The column exists so every source
+          has the same shape; what was actually read is location_raw.
+      - name: workplace_type
+        description: >
+          Canonical remoteness, DERIVED from the location text: 'remote' when it mentions
+          "remote" (any capitals), otherwise 'unknown'. Never 'in_person' or 'hybrid' - with
+          no field, that would be inventing data. Why only remote: companies do write
+          "Remote" in the location (about 24% of postings, in line with the other sources),
+          but almost never "hybrid" (2%) or "on-site" (0.2%), so the absence of a word says
+          nothing. As for Recruitee, 'remote' means remote is offered ('San Francisco or
+          Remote' counts). The most common such texts were read one by one (2026-10-06).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['remote', 'hybrid', 'in_person', 'unknown']
+      - name: department
+        description: Name of the first department listed for the posting. Rarely empty.
+      - name: language
+        description: Language code of the posting as reported by Greenhouse, e.g. 'en'.
+      - name: first_seen_at
+        description: Pipeline timestamp - when this job first appeared in a landed file.
+      - name: last_seen_at
+        description: >
+          Pipeline timestamp - when this job was last seen in a landed file. The column the
+          source freshness check uses.
+      - name: published_at
+        description: When the posting was first published (a source timestamp). Empty for a handful.
+      - name: updated_at
+        description: >
+          When the company last edited the posting (a source timestamp). Only Greenhouse and
+          Recruitee say this.
+      - name: description_text
+        description: >
+          The job description as plain text. Greenhouse stores its HTML escaped
+          ('&lt;p&gt;' instead of '<p>'), so html_to_text is applied TWICE: the first pass
+          finds no real tags and turns the codes into characters, which makes real tags; the
+          second pass removes them. One pass leaves raw HTML in the column. Measured
+          2026-10-07 on 35,050 postings: none empty, 5 with something tag-like left, 137
+          (0.4%) with a leftover entity.
+      - name: company_slug
+        description: >
+          The board this posting was fetched from: the company's identifier on Greenhouse,
+          equal to external_id in the companies registry (raw.companies, with ats = 'greenhouse').
+          Not sent by the source - stamped by the loader from the landed file's path.
+          Greenhouse also sends the company's display name (see company); this is the
+          identifier, present for every source.
+          NULL for a posting that closed before 2026-10-06, when the stamping started: the
+          nightly merge only updates postings still listed. So not_null is a warning whose
+          count should only shrink as a share - every new posting arrives with its slug.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn

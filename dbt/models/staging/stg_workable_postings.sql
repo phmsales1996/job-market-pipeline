@@ -40,7 +40,8 @@ renamed as (
         s.salary_currency,
         s.salary_frequency as salary_interval_raw,
         sm.salary_interval,
-        nullif({{ html_to_text('s.content') }}, '') as description_text
+        nullif({{ html_to_text('s.content') }}, '') as description_text,
+        s.company_slug
     from
         source s
     left join workplace_map wm on wm.source = 'workable' and s.workplace = wm.workplace_type_raw

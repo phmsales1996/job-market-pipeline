@@ -39,7 +39,8 @@ renamed as (
         sm.salary_interval,
         s.compensation_summary,
         -- Already plain text: the loader stores Ashby's descriptionPlain.
-        nullif(trim(s.content), '') as description_text
+        nullif(trim(s.content), '') as description_text,
+        s.company_slug
     from source s
     left join workplace_map wm on wm.source = 'ashby' and wm.workplace_type_raw = s.workplace_type
     left join salary_interval_map sm on sm.source = 'ashby' and sm.salary_interval_raw = s.salary_interval

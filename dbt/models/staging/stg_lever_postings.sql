@@ -42,7 +42,8 @@ renamed as (
         -- for ~half the postings even when the HTML has a full description.
         {{ html_to_text("json_value(s.raw, '$.opening')") }} as opening_text,
         {{ html_to_text('s.content') }} as body_text,
-        {{ html_to_text('s.additional') }} as additional_text
+        {{ html_to_text('s.additional') }} as additional_text,
+        s.company_slug
     from
         source s
     left join workplace_map wm on wm.source = 'lever' and s.workplace_type = wm.workplace_type_raw

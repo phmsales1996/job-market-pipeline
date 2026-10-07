@@ -10,6 +10,7 @@ ashby,1 MONTH,month
 ashby,1 WEEK,week
 ashby,1 HOUR,hour
 ashby,1 TIME,one_time
+ashby,1 DAY,day
 recruitee,month,month
 recruitee,year,year
 recruitee,hour,hour
