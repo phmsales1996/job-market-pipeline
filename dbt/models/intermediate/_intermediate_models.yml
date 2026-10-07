@@ -71,3 +71,43 @@ models:
         description: >
           Pipeline timestamp - when this posting was last seen in a landed file. A posting not
           seen in the latest run of its source is no longer listed.
+      - name: location_raw
+        description: >
+          Location as the company wrote it. Free text, not normalised. NULL for Workable,
+          whose model keeps no single location text.
+      - name: department
+        description: >
+          Department as published. For Lever this is its `team`: Lever has one level of
+          organisation and calls it team. Often NULL - many boards do not use it.
+      - name: country_raw
+        description: >
+          The source's own country value behind country_code (a name, a code, or for
+          Greenhouse the piece of the location text that matched). Also holds regions such
+          as 'Latin America', which have no country_code. NULL for Lever.
+      - name: salary_min
+        description: >
+          Lower bound of the advertised pay, in salary_currency, per salary_interval. Not
+          annualised. NULL for Greenhouse and Teamtailor (no salary field) and for most
+          postings elsewhere. "Has a salary" means an amount is present: some Recruitee
+          postings carry a currency and a period with no amount.
+      - name: salary_max
+        description: Upper bound of the advertised pay. Same caveats as salary_min.
+      - name: salary_currency
+        description: Currency of the advertised pay, ISO-4217. Can be set without an amount (see salary_min).
+      - name: salary_interval
+        description: >
+          Canonical pay period: 'year', 'month', 'semi_month', 'bi_week', 'week', 'day',
+          'hour', 'one_time'. Translated in staging through the salary_interval_map seed; the
+          source's own word stays in the staging model.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['year', 'month', 'semi_month', 'bi_week', 'week', 'day', 'hour', 'one_time']
+      - name: language
+        description: >
+          Language code of the posting text, e.g. 'en'. Only Greenhouse and Recruitee state
+          it for every posting; Workable for the 650 postings fetched in detail; NULL elsewhere.
+      - name: updated_at
+        description: >
+          When the company last edited the posting (a source timestamp). Only Greenhouse and
+          Recruitee send it; NULL for the other four, where last_seen_at is the only signal.
