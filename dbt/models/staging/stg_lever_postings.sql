@@ -43,7 +43,15 @@ renamed as (
         {{ html_to_text("json_value(s.raw, '$.opening')") }} as opening_text,
         {{ html_to_text('s.content') }} as body_text,
         {{ html_to_text('s.additional') }} as additional_text,
-        s.company_slug
+        s.company_slug,
+        case
+            when regexp_contains(lower(s.commitment), r'intern|apprentice|student|co-op|fellowship') then 'internship'
+            when regexp_contains(lower(s.commitment), r'temporary|seasonal|fixed.?term|per.?diem') then 'temporary'
+            when regexp_contains(lower(s.commitment), r'contract|freelance|consultant|1099') then 'contract'
+            when regexp_contains(lower(s.commitment), r'part.{0,3}time') then 'part_time'
+            when regexp_contains(lower(s.commitment), r'full.{0,3}time|^ft$|permanent') then 'full_time'
+        end as employment_type,
+        nullif(trim(s.commitment),'') as employment_type_raw
     from
         source s
     left join workplace_map wm on wm.source = 'lever' and s.workplace_type = wm.workplace_type_raw

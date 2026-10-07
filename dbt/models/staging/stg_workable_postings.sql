@@ -10,6 +10,9 @@ country_codes as (
 salary_interval_map as (
     select * from {{ ref('salary_interval_map') }}
 ),
+employment_type_map as (
+    select * from {{ ref('employment_type_map') }}
+),
 renamed as (
     select
         'workable' as source,
@@ -29,6 +32,7 @@ renamed as (
         cc.country_code,
         s.department,
         s.employment_type as employment_type_raw,
+        em.employment_type,
         s.experience,
         s.education,
         s.industry,
@@ -47,6 +51,7 @@ renamed as (
     left join workplace_map wm on wm.source = 'workable' and s.workplace = wm.workplace_type_raw
     left join salary_interval_map sm on sm.source = 'workable' and s.salary_frequency = sm.salary_interval_raw
     left join country_codes cc on cc.country_raw = trim(s.country_code)
+    left join employment_type_map em on em.source = 'workable' and em.employment_type_raw = s.employment_type
 )
 
 

@@ -30,13 +30,14 @@ models:
       - name: company_slug
         description: >
           The company's identifier on its ATS, stamped by the loader. The key of the join to
-          the registry, together with source. NULL for postings that closed before
-          2026-10-06 (see the staging models).
+          the registry, together with source. Never NULL.
+        data_tests:
+          - not_null
       - name: company_name
         description: >
           The company's display name, from the companies registry (raw.companies), joined on
           source = ats and company_slug = external_id - both, because the same slug can exist
-          on two ATSs. A LEFT join: a posting with no slug keeps its row and has no name.
+          on two ATSs. A LEFT join, so a posting whose company is missing from the registry keeps its row.
           CAUTION: for most sources the registry's name was built from the slug (title-cased,
           so 'emersonhc' is 'Emersonhc'); only where the API reports a name is it the real
           one. Better names in the registry flow through this join unchanged.
@@ -111,3 +112,14 @@ models:
         description: >
           When the company last edited the posting (a source timestamp). Only Greenhouse and
           Recruitee send it; NULL for the other four, where last_seen_at is the only signal.
+      - name: employment_type
+        description: >
+          Canonical employment type: 'full_time', 'part_time', 'contract', 'temporary',
+          'internship', 'other'. Ashby, Recruitee and Workable are translated through the
+          employment_type_map seed; Lever's free text is read by a pattern rule (see its
+          staging model). NULL for Greenhouse and Teamtailor, which have no such field, and
+          where a posting states none.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['full_time', 'part_time', 'contract', 'temporary', 'internship', 'other']

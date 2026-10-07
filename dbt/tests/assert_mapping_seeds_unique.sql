@@ -26,3 +26,10 @@ select 'us_states', state_raw, count(*)
 from {{ ref('us_states') }}
 group by 1, 2
 having count(*) > 1
+
+union all
+
+select 'employment_type_map', source || ' / ' || employment_type_raw, count(*)
+from {{ ref('employment_type_map') }}
+group by 1, 2
+having count(*) > 1
