@@ -1,0 +1,73 @@
+models:
+  - name: int_postings_unioned
+    description: >
+      Every job posting from the six sources in one table: one row per posting, current
+      state. The six staging models stacked (union all) on the columns they all share, plus
+      the company's display name from the companies registry. Everything downstream reads
+      this model and no longer needs to know there are six sources. Adds no rows and drops
+      none: its row count is the six staging models added together.
+    columns:
+      - name: posting_key
+        description: >
+          One key for the row: source and source_job_id joined by '/', e.g. 'lever/4f2a...'.
+          A posting is identified by the pair - two sources can use the same id - and dbt's
+          unique test looks at one column, so the pair is made into one. Unique here means
+          the union did not double anything.
+        data_tests:
+          - not_null
+          - unique
+      - name: source
+        description: Which ATS the posting came from. One of the six sources.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['greenhouse', 'lever', 'ashby', 'recruitee', 'teamtailor', 'workable']
+      - name: source_job_id
+        description: The posting's id on its source, as text. Unique only within a source.
+        data_tests:
+          - not_null
+      - name: company_slug
+        description: >
+          The company's identifier on its ATS, stamped by the loader. The key of the join to
+          the registry, together with source. NULL for postings that closed before
+          2026-10-06 (see the staging models).
+      - name: company_name
+        description: >
+          The company's display name, from the companies registry (raw.companies), joined on
+          source = ats and company_slug = external_id - both, because the same slug can exist
+          on two ATSs. A LEFT join: a posting with no slug keeps its row and has no name.
+          CAUTION: for most sources the registry's name was built from the slug (title-cased,
+          so 'emersonhc' is 'Emersonhc'); only where the API reports a name is it the real
+          one. Better names in the registry flow through this join unchanged.
+      - name: title
+        description: Job title as published.
+      - name: job_url
+        description: Public URL of the posting.
+      - name: country_code
+        description: >
+          ISO-3166 alpha-2. Sent by the source, translated from a name, or - for Greenhouse -
+          derived from the location text. NULL when not stated. See each staging model.
+      - name: workplace_type
+        description: >
+          Canonical remoteness: 'remote', 'hybrid', 'in_person', 'unknown'. The rule differs
+          per source and is documented in each staging model; in particular 'remote' means
+          "remote is offered" for Recruitee and Greenhouse, and 'unknown' is the honest value
+          where a source does not say.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['remote', 'hybrid', 'in_person', 'unknown']
+      - name: workplace_type_raw
+        description: The source's own word(s) behind workplace_type, where it has any.
+      - name: description_text
+        description: The job description as plain text. NULL where a source has none for the posting.
+      - name: published_at
+        description: When the company published the posting (a source timestamp; a date only for Workable).
+      - name: first_seen_at
+        description: Pipeline timestamp - when this posting first appeared in a landed file.
+      - name: last_seen_at
+        description: >
+          Pipeline timestamp - when this posting was last seen in a landed file. A posting not
+          seen in the latest run of its source is no longer listed.

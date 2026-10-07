@@ -15,5 +15,8 @@ sources:
       - name: recruitee_postings
       - name: teamtailor_postings
       - name: workable_postings
+      - name: companies
+        config:
+          freshness: null
     
     
