@@ -129,13 +129,32 @@ models:
           The board this posting was fetched from: the company's identifier on Lever,
           equal to external_id in the companies registry (raw.companies, with ats = 'lever').
           Not sent by the source - stamped by the loader from the landed file's path.
-          NULL for a posting that closed before 2026-10-06, when the stamping started: the
-          nightly merge only updates postings still listed. So not_null is a warning whose
-          count should only shrink as a share - every new posting arrives with its slug.
+          Never NULL: the loader stamps every row, and the postings that closed before the
+          stamping started (2026-10-06) were deleted from the raw tables on 2026-10-07. A
+          NULL here means the stamping broke.
         data_tests:
-          - not_null:
-              config:
-                severity: warn
+          - not_null
+      - name: employment_type_raw
+        description: >
+          Lever's `commitment` as the company typed it, trimmed; an empty text becomes NULL.
+          FREE TEXT, unlike the other sources' fixed menus: about 200 different values,
+          mixing employment types ('Full-time') with places ('Remote - Latam'), seniority
+          ('Mid-Senior Level') and departments ('Sales').
+      - name: employment_type
+        description: >
+          Canonical employment type: 'full_time', 'part_time', 'contract', 'temporary',
+          'internship'. DERIVED from the free text by a pattern rule, not a seed - a seed
+          cannot keep up with free text. The first match wins, from specific to general:
+          internship (intern, apprentice, student, co-op, fellowship), temporary (temporary,
+          seasonal, fixed term, per diem), contract (contract, freelance, consultant, 1099),
+          part_time, full_time (also 'FT' alone and 'permanent'). So 'Contractor Full-Time'
+          is a contract and 'Intern / Part-Time' an internship. NULL when the text names no
+          type the rule can read ('Homeoffice', 'Regular', 'Sales' - about 5% of stated
+          values, 2026-10-07) or is empty. Never 'other': these texts name no type at all.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['full_time', 'part_time', 'contract', 'temporary', 'internship', 'other']
 
   - name: stg_ashby_postings
     description: >
@@ -222,13 +241,25 @@ models:
           The board this posting was fetched from: the company's identifier on Ashby,
           equal to external_id in the companies registry (raw.companies, with ats = 'ashby').
           Not sent by the source - stamped by the loader from the landed file's path.
-          NULL for a posting that closed before 2026-10-06, when the stamping started: the
-          nightly merge only updates postings still listed. So not_null is a warning whose
-          count should only shrink as a share - every new posting arrives with its slug.
+          Never NULL: the loader stamps every row, and the postings that closed before the
+          stamping started (2026-10-06) were deleted from the raw tables on 2026-10-07. A
+          NULL here means the stamping broke.
         data_tests:
-          - not_null:
-              config:
-                severity: warn
+          - not_null
+      - name: employment_type_raw
+        description: >
+          Ashby's own employment type ('FullTime', 'PartTime', 'Contract', 'Intern',
+          'Temporary'), kept next to the translation.
+      - name: employment_type
+        description: >
+          Canonical employment type: 'full_time', 'part_time', 'contract', 'temporary',
+          'internship', 'other'. Translated through the employment_type_map seed (keyed on
+          source + raw value). NULL when the posting states none, or - caught by
+          assert_ashby_employment_type_mapped - for a word the seed does not know.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['full_time', 'part_time', 'contract', 'temporary', 'internship', 'other']
 
   - name: stg_recruitee_postings
     description: >
@@ -237,7 +268,7 @@ models:
       are interpreted rather than renamed: workplace_type (collapsed from three booleans) and
       country_code (already ISO, confirmed against the country_codes seed). Translates, never
       filters. Recruitee splits its text into three HTML sections; they are converted and
-      assembled into description_text. Not here yet: the mapped employment type.
+      assembled into description_text. 
     columns:
       - name: source
         description: Always 'recruitee'. Half of the canonical key (source, source_job_id).
@@ -319,8 +350,19 @@ models:
         description: Department as published. Often NULL - many boards do not use it.
       - name: employment_type_raw
         description: >
-          Recruitee's own employment type code (raw `employment_type`), e.g. 'fulltime',
-          'freelance'. Not mapped: there is no canonical employment_type until its seed exists.
+          Recruitee's own employment type code (raw `employment_type`), e.g.
+          'fulltime_permanent', 'parttime_fixed_term', 'freelance'. Kept next to the
+          translation: it also says whether the job is permanent or fixed-term.
+      - name: employment_type
+        description: >
+          Canonical employment type: 'full_time', 'part_time', 'contract', 'temporary',
+          'internship', 'other'. Translated through the employment_type_map seed (keyed on
+          source + raw value). Recruitee's codes carry hours AND contract length ('fulltime_fixed_term'); only the hours are kept here. NULL when the posting states none, or - caught by
+          assert_recruitee_employment_type_mapped - for a word the seed does not know.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['full_time', 'part_time', 'contract', 'temporary', 'internship', 'other']
       - name: published_at
         description: When the company published the posting (a source timestamp).
       - name: updated_at
@@ -368,13 +410,11 @@ models:
           The board this posting was fetched from: the company's identifier on Recruitee,
           equal to external_id in the companies registry (raw.companies, with ats = 'recruitee').
           Not sent by the source - stamped by the loader from the landed file's path.
-          NULL for a posting that closed before 2026-10-06, when the stamping started: the
-          nightly merge only updates postings still listed. So not_null is a warning whose
-          count should only shrink as a share - every new posting arrives with its slug.
+          Never NULL: the loader stamps every row, and the postings that closed before the
+          stamping started (2026-10-06) were deleted from the raw tables on 2026-10-07. A
+          NULL here means the stamping broke.
         data_tests:
-          - not_null:
-              config:
-                severity: warn
+          - not_null
 
   - name: stg_teamtailor_postings
     description: >
@@ -464,13 +504,11 @@ models:
           The board this posting was fetched from: the company's identifier on Teamtailor,
           equal to external_id in the companies registry (raw.companies, with ats = 'teamtailor').
           Not sent by the source - stamped by the loader from the landed file's path.
-          NULL for a posting that closed before 2026-10-06, when the stamping started: the
-          nightly merge only updates postings still listed. So not_null is a warning whose
-          count should only shrink as a share - every new posting arrives with its slug.
+          Never NULL: the loader stamps every row, and the postings that closed before the
+          stamping started (2026-10-06) were deleted from the raw tables on 2026-10-07. A
+          NULL here means the stamping broke.
         data_tests:
-          - not_null:
-              config:
-                severity: warn
+          - not_null
 
   - name: stg_workable_postings
     description: >
@@ -547,8 +585,17 @@ models:
       - name: employment_type_raw
         description: >
           Workable's own employment type ('Full-time', 'Contract', 'Part-time', 'Other',
-          'Temporary'). Not mapped: there is no canonical employment_type until its seed
-          exists.
+          'Temporary'), kept next to the translation.
+      - name: employment_type
+        description: >
+          Canonical employment type: 'full_time', 'part_time', 'contract', 'temporary',
+          'internship', 'other'. Translated through the employment_type_map seed (keyed on
+          source + raw value). NULL when the posting states none, or - caught by
+          assert_workable_employment_type_mapped - for a word the seed does not know.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['full_time', 'part_time', 'contract', 'temporary', 'internship', 'other']
       - name: experience
         description: >
           Seniority as published, e.g. 'Director', 'Mid-Senior level'. Workable's own
@@ -603,13 +650,11 @@ models:
           The board this posting was fetched from: the company's identifier on Workable,
           equal to external_id in the companies registry (raw.companies, with ats = 'workable').
           Not sent by the source - stamped by the loader from the landed file's path.
-          NULL for a posting that closed before 2026-10-06, when the stamping started: the
-          nightly merge only updates postings still listed. So not_null is a warning whose
-          count should only shrink as a share - every new posting arrives with its slug.
+          Never NULL: the loader stamps every row, and the postings that closed before the
+          stamping started (2026-10-06) were deleted from the raw tables on 2026-10-07. A
+          NULL here means the stamping broke.
         data_tests:
-          - not_null:
-              config:
-                severity: warn
+          - not_null
 
   - name: stg_greenhouse_postings
     description: >
@@ -716,10 +761,8 @@ models:
           Not sent by the source - stamped by the loader from the landed file's path.
           Greenhouse also sends the company's display name (see company); this is the
           identifier, present for every source.
-          NULL for a posting that closed before 2026-10-06, when the stamping started: the
-          nightly merge only updates postings still listed. So not_null is a warning whose
-          count should only shrink as a share - every new posting arrives with its slug.
+          Never NULL: the loader stamps every row, and the postings that closed before the
+          stamping started (2026-10-06) were deleted from the raw tables on 2026-10-07. A
+          NULL here means the stamping broke.
         data_tests:
-          - not_null:
-              config:
-                severity: warn
+          - not_null

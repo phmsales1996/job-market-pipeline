@@ -7,6 +7,9 @@ country_codes as (
 salary_interval_map as (
     select * from {{ ref('salary_interval_map') }}
 ),
+employment_type_map as (
+    select * from {{ ref('employment_type_map') }}
+),
 renamed as (
     select
         'recruitee' as source,
@@ -32,6 +35,7 @@ renamed as (
         s.location as location_raw,
         s.department,
         s.employment_type as employment_type_raw,
+        em.employment_type,
         s.published_at,
         s.updated_at,
         s.salary_min,
@@ -46,6 +50,7 @@ renamed as (
     from source s
     left join salary_interval_map sm on sm.source = 'recruitee' and sm.salary_interval_raw = s.salary_period
     left join country_codes cc on cc.country_raw = trim(s.country_code)
+    left join employment_type_map em on em.source = 'recruitee' and em.employment_type_raw = s.employment_type
 ),
 
 assembled as (

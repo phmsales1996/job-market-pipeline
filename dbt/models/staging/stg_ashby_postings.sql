@@ -10,6 +10,9 @@ salary_interval_map as (
 country_codes as (
     select * from {{ ref('country_codes') }}
 ),
+employment_type_map as (
+    select * from {{ ref('employment_type_map') }}
+),
 renamed as (
     select
         'ashby' as source,
@@ -38,6 +41,8 @@ renamed as (
         s.salary_interval as salary_interval_raw,
         sm.salary_interval,
         s.compensation_summary,
+        s.employment_type as employment_type_raw,
+        em.employment_type,
         -- Already plain text: the loader stores Ashby's descriptionPlain.
         nullif(trim(s.content), '') as description_text,
         s.company_slug
@@ -45,5 +50,6 @@ renamed as (
     left join workplace_map wm on wm.source = 'ashby' and wm.workplace_type_raw = s.workplace_type
     left join salary_interval_map sm on sm.source = 'ashby' and sm.salary_interval_raw = s.salary_interval
     left join country_codes cc on cc.country_raw = trim(s.country)
+    left join employment_type_map em on em.source = 'ashby' and em.employment_type_raw = s.employment_type
 )
 select * from renamed
