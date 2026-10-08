@@ -110,14 +110,28 @@ models:
       - name: first_seen_at
         description: When the pipeline first saw the posting.
       - name: last_seen_at
-        description: When the pipeline last saw the posting. Not seen in the latest run means no longer listed.
+        description: >
+          When the pipeline last saw the posting: the moment its company's file was saved,
+          so postings from the same nightly run carry slightly different times.
+      - name: is_open
+        description: >
+          Whether the posting is still listed: true when it was last seen on the same day as
+          its source's most recent run. No source sends a "closed" signal - a closed posting
+          simply stops being returned (Ashby's `isListed` is always true in what we receive,
+          checked 2026-10-08) - so absence is the only evidence. The comparison is per
+          SOURCE, not against the calendar: each source runs at its own hour, and if one
+          source's run fails its postings stay open rather than all flipping to closed. It
+          compares days, not exact times, because a run saves one file per company over
+          several minutes.
+        data_tests:
+          - not_null
 
   - name: remote_jobs
     description: >
-      One row per remote job posting, with what a job seeker reads already joined in: the
+      One row per OPEN remote job posting, with what a job seeker reads already joined in: the
       company's name, the country's name and its business region. The wide, flat table for
       using the data, built on the star (fct_job_postings and dim_country) - the star is how
-      the data is modelled, this is how it is served. "Remote" follows each source's rule in
+      the data is modelled, this is how it is served. Open postings only (is_open). "Remote" follows each source's rule in
       staging; for Recruitee and Greenhouse it means remote is offered, possibly among other
       options. Named after the question it answers.
     columns:
