@@ -1,6 +1,18 @@
+with int_postings_unioned as (
+    select * from {{ ref('int_postings_unioned')}}
+),
+source_freshness as (
+    select
+        source,
+        max(last_seen_at) as source_last_seen_at
+    from
+        int_postings_unioned
+    group by source
+)
+
 select
     posting_key,
-    source,
+    iu.source,
     title,
     coalesce(country_code, 'ZZ') as country_key,
     source_job_id,
@@ -20,6 +32,8 @@ select
     published_at,
     updated_at,
     first_seen_at,
-    last_seen_at
+    last_seen_at,
+    cast(iu.last_seen_at as date) = cast(sf.source_last_seen_at as date)  as is_open
 from
-    {{ ref('int_postings_unioned')}}
+    int_postings_unioned iu
+    join source_freshness sf on iu.source = sf.source

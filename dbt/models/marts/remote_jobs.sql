@@ -23,4 +23,4 @@ from
     jobs j
     join countries c on j.country_key = c.country_code
 where
-    j.workplace_type = 'remote'
+    j.workplace_type = 'remote' and j.is_open
