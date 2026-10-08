@@ -1,0 +1,5 @@
+# Rendered output: built from the .qmd files, never committed
+/.quarto/
+/_site/
+*.html
+*_files/

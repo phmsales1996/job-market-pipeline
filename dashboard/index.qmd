@@ -1,0 +1,376 @@
+---
+title: "Job market"
+format:
+  dashboard:
+    theme: [cosmo, custom.scss]
+    orientation: rows
+    scrolling: true
+    nav-buttons: [github]
+    github: https://github.com/phmsales1996/job-market-pipeline
+---
+
+```{python}
+#| label: setup
+import datetime as dt
+
+import pandas as pd
+import plotly.graph_objects as go
+from google.cloud import bigquery
+from itables import show
+
+client = bigquery.Client()
+
+
+def q(sql: str) -> pd.DataFrame:
+    return client.query(sql).to_dataframe()
+
+
+# One look for every chart: thin single-hue bars, hairline grid, text in ink colours.
+BLUE, ORANGE, AQUA, GRAY = "#2a78d6", "#eb6834", "#1baf7a", "#c3c2b7"
+INK, INK2, MUTED, GRID, AXIS, SURFACE = "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7", "#fcfcfb"
+FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif'
+
+
+def style(fig: go.Figure, height: int) -> go.Figure:
+    fig.update_layout(
+        height=height, margin=dict(l=8, r=48, t=8, b=8),
+        font=dict(family=FONT, size=13, color=INK2),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        hoverlabel=dict(bgcolor="#ffffff", bordercolor=GRID, font=dict(family=FONT, color=INK)),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, title=None),
+        bargap=0.42,
+    )
+    fig.update_xaxes(gridcolor=GRID, zeroline=True, zerolinecolor=AXIS, tickfont=dict(color=MUTED),
+                     title=None, tickformat=",d")
+    fig.update_yaxes(showgrid=False, tickfont=dict(color=INK2), title=None, ticksuffix="  ")
+    return fig
+
+
+def hbar(df: pd.DataFrame, label: str, value: str, noun: str) -> go.Figure:
+    """Horizontal bars, largest on top, one colour, the value at each tip."""
+    d = df.sort_values(value)
+    fig = go.Figure(go.Bar(
+        x=d[value], y=d[label], orientation="h",
+        marker=dict(color=BLUE, cornerradius=4),
+        text=[f"{int(v):,}" for v in d[value]], textposition="outside",
+        textfont=dict(color=INK, size=12),
+        hovertemplate="<b>%{y}</b><br>%{x:,} " + noun + "<extra></extra>",
+    ))
+    fig.update_traces(width=0.56)
+    style(fig, height=34 * len(d) + 40)
+    # Room on the right for the value at the tip of the longest bar.
+    fig.update_xaxes(range=[0, float(d[value].max()) * 1.14])
+    fig.update_layout(margin=dict(r=12))
+    return fig
+
+
+WORKPLACE = {"remote": ("Remote", BLUE), "hybrid": ("Hybrid", ORANGE),
+             "in_person": ("In person", AQUA), "unknown": ("Not stated", GRAY)}
+
+
+def workplace_counts(df: pd.DataFrame) -> pd.DataFrame:
+    wide = df.pivot(index="source", columns="workplace_type", values="postings").fillna(0).astype(int)
+    wide = wide.reindex(columns=list(WORKPLACE), fill_value=0)
+    return wide.rename(columns={k: v[0] for k, v in WORKPLACE.items()}).reset_index()
+
+
+def workplace_share(df: pd.DataFrame) -> go.Figure:
+    """100% stacked bars: one row per source, a 2px gap between segments, grey for 'not stated'."""
+    counts = workplace_counts(df).set_index("source")
+    share = (counts.div(counts.sum(axis=1), axis=0) * 100).sort_values("Remote")
+    fig = go.Figure()
+    for name, color in WORKPLACE.values():
+        fig.add_bar(
+            x=share[name], y=share.index, orientation="h", name=name, width=0.5,
+            marker=dict(color=color, line=dict(color=SURFACE, width=2)),
+            customdata=counts.loc[share.index, name],
+            hovertemplate="<b>%{y}</b> · " + name + "<br>%{x:.0f}% · %{customdata:,} postings<extra></extra>",
+        )
+    style(fig, height=300)
+    fig.update_layout(barmode="stack", margin=dict(r=16, t=36),
+                      legend=dict(traceorder="normal", entrywidth=110, entrywidthmode="pixels"))
+    fig.update_xaxes(ticksuffix="%", range=[0, 100], tickformat="d")
+    return fig
+
+
+def daily_cost(df: pd.DataFrame) -> go.Figure:
+    fig = go.Figure(go.Bar(
+        x=df["day"], y=df["gb_read"], marker=dict(color=BLUE, cornerradius=4),
+        hovertemplate="<b>%{x|%b %d}</b><br>%{y:,.1f} GB read<extra></extra>",
+    ))
+    style(fig, height=300)
+    fig.update_layout(bargap=0.5, margin=dict(r=16))
+    fig.update_xaxes(showgrid=False, tickformat="%b %d")
+    fig.update_yaxes(showgrid=True, gridcolor=GRID, ticksuffix=" GB  ", tickfont=dict(color=MUTED))
+    return fig
+
+
+def draw(fig: go.Figure) -> None:
+    fig.show(config={"displayModeBar": False, "responsive": True})
+
+
+def table(df: pd.DataFrame, **kw) -> None:
+    show(df, showIndex=False, classes="display compact", style="width:100%", autoWidth=False, **kw)
+
+
+kpi = q("""
+    select
+      countif(is_open) as open_postings,
+      countif(is_open and workplace_type = 'remote') as open_remote,
+      count(distinct if(is_open, concat(source, '/', company_slug), null)) as companies,
+      count(distinct if(is_open and country_key != 'ZZ', country_key, null)) as countries,
+      format_timestamp('%Y-%m-%d', max(last_seen_at)) as as_of
+    from dev_marts.fct_job_postings
+""").iloc[0]
+
+by_region = q("""
+    select business_region as region, count(*) as postings
+    from dev_marts.remote_jobs group by 1
+""")
+
+by_country = q("""
+    select country_name as country, count(*) as postings
+    from dev_marts.remote_jobs where country_name != 'Unknown'
+    group by 1 order by 2 desc limit 12
+""")
+
+by_source = q("""
+    select source, workplace_type, count(*) as postings
+    from dev_marts.fct_job_postings where is_open group by 1, 2
+""")
+
+by_employment = q("""
+    select employment_type, count(*) as postings
+    from dev_marts.remote_jobs where employment_type is not null group by 1
+""")
+
+top_companies = q("""
+    select company_name as company, source,
+           count(*) as open_remote_postings,
+           count(distinct if(country_name != 'Unknown', country_name, null)) as countries
+    from dev_marts.remote_jobs group by 1, 2 order by 3 desc limit 200
+""")
+
+latest = q("""
+    select format_timestamp('%Y-%m-%d', published_at) as published,
+           title, company_name as company, country_name as country, business_region as region,
+           employment_type as type,
+           case when salary_min is not null or salary_max is not null
+                then concat(ifnull(format("%'d", cast(salary_min as int64)), '?'), ' - ',
+                            ifnull(format("%'d", cast(salary_max as int64)), '?'), ' ',
+                            ifnull(salary_currency, ''), ' / ', ifnull(salary_interval, '?')) end as pay,
+           job_url
+    from dev_marts.remote_jobs
+    where published_at is not null
+    order by published_at desc limit 1500
+""")
+latest["title"] = [f'<a href="{u}" target="_blank" rel="noopener">{t}</a>' for t, u in zip(latest["title"], latest["job_url"])]
+latest = latest.drop(columns="job_url")
+latest["type"] = latest["type"].str.replace("_", " ")
+latest = latest.fillna("")
+latest.columns = ["Published", "Title", "Company", "Country", "Region", "Type", "Pay"]
+
+per_source = q("""
+    select source,
+           countif(is_open) as open_postings,
+           countif(not is_open) as closed_postings,
+           countif(is_open and description_text is not null) as with_description,
+           format_timestamp('%Y-%m-%d %H:%M', max(last_seen_at)) as last_run_utc
+    from dev_marts.fct_job_postings group by 1 order by 2 desc
+""")
+per_source["description_fill"] = (100 * per_source["with_description"] / per_source["open_postings"]).round(1).astype(str) + "%"
+per_source = per_source.drop(columns="with_description")
+per_source.columns = ["Source", "Open", "Closed", "Last run (UTC)", "With a description"]
+
+cost = q("""
+    select date(creation_time) as day,
+           round(sum(total_bytes_billed) / pow(1024, 3), 1) as gb_read,
+           count(*) as jobs
+    from `region-us-central1`.INFORMATION_SCHEMA.JOBS
+    where creation_time >= timestamp_sub(current_timestamp(), interval 21 day)
+    group by 1 order by 1
+""")
+month_gb = float(q("""
+    select round(sum(total_bytes_billed) / pow(1024, 3), 1) as gb
+    from `region-us-central1`.INFORMATION_SCHEMA.JOBS
+    where date(creation_time) >= date_trunc(current_date(), month)
+""").iloc[0]["gb"])
+```
+
+# Overview
+
+## Row {height=110px}
+
+```{python}
+#| content: valuebox
+#| title: "Open postings"
+dict(value=f"{int(kpi.open_postings):,}", color="light")
+```
+
+```{python}
+#| content: valuebox
+#| title: "Open and remote"
+dict(value=f"{int(kpi.open_remote):,}", color="light")
+```
+
+```{python}
+#| content: valuebox
+#| title: "Share that is remote"
+dict(value=f"{100 * kpi.open_remote / kpi.open_postings:.0f}%", color="light")
+```
+
+```{python}
+#| content: valuebox
+#| title: "Companies hiring"
+dict(value=f"{int(kpi.companies):,}", color="light")
+```
+
+```{python}
+#| content: valuebox
+#| title: "Countries"
+dict(value=f"{int(kpi.countries):,}", color="light")
+```
+
+## Row {height=330px}
+
+### Column {.tabset}
+
+```{python}
+#| title: Remote postings by region
+draw(hbar(by_region, "region", "postings", "open remote postings"))
+```
+
+```{python}
+#| title: Table
+table(by_region.sort_values("postings", ascending=False), dom="t")
+```
+
+### Column {.tabset}
+
+```{python}
+#| title: Remote postings by employment type
+e = by_employment.assign(employment_type=by_employment["employment_type"].str.replace("_", " ").str.capitalize())
+draw(hbar(e, "employment_type", "postings", "open remote postings"))
+```
+
+```{python}
+#| title: Table
+table(e.sort_values("postings", ascending=False), dom="t")
+```
+
+## Row {height=520px}
+
+### Column {.tabset}
+
+```{python}
+#| title: Remote postings by country, top 12
+draw(hbar(by_country, "country", "postings", "open remote postings"))
+```
+
+```{python}
+#| title: Table
+table(by_country, dom="t")
+```
+
+### Column {.tabset}
+
+```{python}
+#| title: Companies with the most open remote postings, top 12
+top12 = top_companies.head(12).rename(columns={"open_remote_postings": "postings"})
+draw(hbar(top12, "company", "postings", "open remote postings"))
+```
+
+```{python}
+#| title: Table
+table(top12[["company", "source", "postings"]], dom="t")
+```
+
+## Row {height=360px}
+
+### Column {.tabset}
+
+```{python}
+#| title: Workplace type by source, share of open postings
+draw(workplace_share(by_source))
+```
+
+```{python}
+#| title: Table
+t = workplace_counts(by_source)
+table(t, dom="t")
+```
+
+## Row {height=70px}
+
+::: {.dashboard-note}
+```{python}
+#| output: asis
+print(f"Postings seen in each source's latest nightly run, as of {kpi.as_of}. "
+      "\"Remote\" follows each source's own rule; for sources with no workplace field it is read from the location text. "
+      "Sources that state no workplace type show as \"Not stated\".")
+```
+:::
+
+# Remote jobs
+
+## Row
+
+```{python}
+#| title: Latest open remote postings (1,500 most recent) - type in the box to search
+table(latest, allow_html=True, pageLength=25, lengthMenu=[25, 50, 100],
+      columnDefs=[{"targets": 0, "width": "96px"}, {"targets": 1, "width": "34%"}], order=[[0, "desc"]])
+```
+
+# Companies
+
+## Row
+
+```{python}
+#| title: Companies with the most open remote postings (top 200)
+table(top_companies, pageLength=25, order=[[2, "desc"]])
+```
+
+# Pipeline
+
+## Row {height=110px}
+
+```{python}
+#| content: valuebox
+#| title: "Data as of"
+dict(value=str(kpi.as_of), color="light")
+```
+
+```{python}
+#| content: valuebox
+#| title: "BigQuery data read this month"
+dict(value=f"{month_gb:,.0f} GB", color="light")
+```
+
+```{python}
+#| content: valuebox
+#| title: "Share of the free 1 TiB"
+dict(value=f"{100 * month_gb / 1024:.0f}%", color="light")
+```
+
+## Row {height=400px}
+
+### Column {.tabset}
+
+```{python}
+#| title: BigQuery data read per day, GB
+draw(daily_cost(cost))
+```
+
+```{python}
+#| title: Table
+c = cost.assign(day=cost["day"].astype(str)).sort_values("day", ascending=False)
+c.columns = ["Day", "GB read", "Jobs"]
+table(c, pageLength=25)
+```
+
+### Column
+
+```{python}
+#| title: Per source
+table(per_source, dom="t")
+```

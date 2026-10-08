@@ -1,0 +1,7 @@
+# What the dashboard needs, on top of the pipeline's own requirements.txt.
+# Quarto runs the Python in the page through Jupyter; Quarto itself is installed separately.
+jupyter
+plotly
+pandas
+db-dtypes
+itables
