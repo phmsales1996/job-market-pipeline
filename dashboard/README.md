@@ -14,7 +14,7 @@ once and produces a plain web page, so nothing has to be running for someone to 
 It reads only the marts (`remote_jobs`, `fct_job_postings`), never the raw tables.
 
 ```bash
-pip install -r requirements-dev.txt        # once; Quarto itself is installed separately
+pip install -r dashboard/requirements.txt  # once; Quarto itself is installed separately
 quarto preview dashboard/index.qmd         # live preview while editing
 quarto render dashboard/index.qmd          # build the page
 ```
