@@ -33,3 +33,10 @@ select 'employment_type_map', source || ' / ' || employment_type_raw, count(*)
 from {{ ref('employment_type_map') }}
 group by 1, 2
 having count(*) > 1
+
+union all
+
+select 'countries', country_code, count(*)
+from {{ ref('countries') }}
+group by 1, 2
+having count(*) > 1

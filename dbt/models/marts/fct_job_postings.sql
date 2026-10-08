@@ -1,0 +1,25 @@
+select
+    posting_key,
+    source,
+    title,
+    coalesce(country_code, 'ZZ') as country_key,
+    source_job_id,
+    company_slug,
+    company_name,
+    job_url,
+    workplace_type,
+    employment_type,
+    department,
+    language,
+    location_raw,
+    salary_min,
+    salary_max,
+    salary_currency,
+    salary_interval,
+    description_text,
+    published_at,
+    updated_at,
+    first_seen_at,
+    last_seen_at
+from
+    {{ ref('int_postings_unioned')}}
