@@ -1,0 +1,157 @@
+models:
+  - name: dim_country
+    description: >
+      One row per country: its name and the regions it belongs to. The country dimension of
+      the star - postings point to it through country_code. Built from the countries seed
+      (the ISO list, written by scripts/generate_country_seed.py) plus one extra row, 'ZZ',
+      for postings that state no country, so every posting has a row to join to and totals
+      by country or region add up.
+    columns:
+      - name: country_code
+        description: >
+          ISO-3166 alpha-2, the key. Two codes are not ISO countries: 'XK' (Kosovo, the
+          widely used user-assigned code) and 'ZZ' (no country stated - a code ISO reserves
+          and never assigns).
+        data_tests:
+          - not_null
+          - unique
+      - name: country_name
+        description: >
+          The country's everyday name in English, for display ('Brazil', 'United States').
+          'Unknown' for the 'ZZ' row.
+        data_tests:
+          - not_null
+      - name: region
+        description: >
+          The United Nations region: 'Americas', 'Europe', 'Asia', 'Africa', 'Oceania'.
+          'Unknown' for 'ZZ'; empty for Antarctica.
+      - name: sub_region
+        description: >
+          The United Nations sub-region, e.g. 'Latin America and the Caribbean',
+          'Northern America', 'Western Europe', 'Western Asia'. Kept as published.
+      - name: business_region
+        description: >
+          Our own grouping of the UN sub-regions into the words companies use: 'NAMER'
+          (Northern America), 'LATAM' (Latin America and the Caribbean), 'EMEA' (Europe,
+          Africa and Western Asia - the Middle East), 'APAC' (the rest of Asia and Oceania).
+          The rule lives in BUSINESS_REGIONS in scripts/generate_country_seed.py. Judgement
+          calls: Mexico is LATAM, following the UN; Turkey, Israel and the Gulf are EMEA.
+          'Unknown' for 'ZZ'; empty for Antarctica.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['NAMER', 'LATAM', 'EMEA', 'APAC', 'Unknown']
+
+  - name: fct_job_postings
+    description: >
+      One row per job posting, current state: the fact table of the star. It carries the
+      posting's own attributes and the key of each dimension it points to (so far
+      country_key -> dim_country). Built from int_postings_unioned, which already stacks the
+      six sources. Same row count as that model: a mart adds meaning, not rows.
+    columns:
+      - name: posting_key
+        description: The posting's key, source and source_job_id joined by '/'. One row each.
+        data_tests:
+          - not_null
+          - unique
+      - name: source
+        description: Which ATS the posting came from.
+      - name: title
+        description: Job title as published.
+      - name: country_key
+        description: >
+          Key to dim_country: the posting's ISO country code, or 'ZZ' when it states no
+          country. Never empty, so every posting joins to exactly one row of the dimension
+          and totals by country or region add up to the number of postings.
+        data_tests:
+          - not_null
+      - name: source_job_id
+        description: The posting's id on its source, as text.
+      - name: company_slug
+        description: The company's identifier on its ATS; with source, the key to the companies registry.
+      - name: company_name
+        description: >
+          The company's display name, from the registry. For most sources it was built from
+          the slug. To move to dim_company when that dimension exists.
+      - name: job_url
+        description: Public URL of the posting.
+      - name: workplace_type
+        description: >
+          'remote', 'hybrid', 'in_person' or 'unknown'. The rule differs per source (see the
+          staging models); 'unknown' is the honest value where a source does not say.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['remote', 'hybrid', 'in_person', 'unknown']
+      - name: employment_type
+        description: >
+          'full_time', 'part_time', 'contract', 'temporary', 'internship', 'other'. Empty for
+          Greenhouse and Teamtailor, which have no such field.
+      - name: department
+        description: Department as published; for Lever, its team.
+      - name: language
+        description: Language code of the posting text, where the source states it.
+      - name: location_raw
+        description: Location as the company wrote it. Free text.
+      - name: salary_min
+        description: Lower bound of the advertised pay, per salary_interval, in salary_currency. Not annualised.
+      - name: salary_max
+        description: Upper bound of the advertised pay.
+      - name: salary_currency
+        description: Currency of the advertised pay. Can be set without an amount.
+      - name: salary_interval
+        description: Pay period - 'year', 'month', 'hour' and so on.
+      - name: description_text
+        description: The job description as plain text.
+      - name: published_at
+        description: When the company published the posting.
+      - name: updated_at
+        description: When the company last edited the posting (Greenhouse and Recruitee only).
+      - name: first_seen_at
+        description: When the pipeline first saw the posting.
+      - name: last_seen_at
+        description: When the pipeline last saw the posting. Not seen in the latest run means no longer listed.
+
+  - name: remote_jobs
+    description: >
+      One row per remote job posting, with what a job seeker reads already joined in: the
+      company's name, the country's name and its business region. The wide, flat table for
+      using the data, built on the star (fct_job_postings and dim_country) - the star is how
+      the data is modelled, this is how it is served. "Remote" follows each source's rule in
+      staging; for Recruitee and Greenhouse it means remote is offered, possibly among other
+      options. Named after the question it answers.
+    columns:
+      - name: posting_key
+        description: The posting's key. One row each.
+        data_tests:
+          - not_null
+          - unique
+      - name: title
+        description: Job title as published.
+      - name: company_name
+        description: The company's display name (for most sources built from its slug).
+      - name: country_name
+        description: >
+          The country's name, from dim_country. 'Unknown' when the posting states none -
+          common for remote postings, whose location is often just "Remote".
+      - name: business_region
+        description: "'NAMER', 'LATAM', 'EMEA', 'APAC', or 'Unknown' when no country is stated."
+      - name: employment_type
+        description: "'full_time', 'part_time', 'contract', 'temporary', 'internship', 'other', or empty."
+      - name: salary_min
+        description: Lower bound of the advertised pay, per salary_interval, in salary_currency.
+      - name: salary_max
+        description: Upper bound of the advertised pay.
+      - name: salary_currency
+        description: Currency of the advertised pay.
+      - name: salary_interval
+        description: Pay period - 'year', 'month', 'hour' and so on.
+      - name: job_url
+        description: Public URL of the posting - where to read it and apply.
+      - name: source
+        description: Which ATS the posting came from.
+      - name: published_at
+        description: When the company published the posting.
+      - name: last_seen_at
+        description: When the pipeline last saw the posting.
+

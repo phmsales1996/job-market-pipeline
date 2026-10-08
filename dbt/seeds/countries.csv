@@ -1,0 +1,251 @@
+country_code,country_name,region,sub_region,business_region
+AD,Andorra,Europe,Southern Europe,EMEA
+AE,United Arab Emirates,Asia,Western Asia,EMEA
+AF,Afghanistan,Asia,Southern Asia,APAC
+AG,Antigua & Barbuda,Americas,Latin America and the Caribbean,LATAM
+AI,Anguilla,Americas,Latin America and the Caribbean,LATAM
+AL,Albania,Europe,Southern Europe,EMEA
+AM,Armenia,Asia,Western Asia,EMEA
+AO,Angola,Africa,Sub-Saharan Africa,EMEA
+AQ,Antarctica,,,
+AR,Argentina,Americas,Latin America and the Caribbean,LATAM
+AS,American Samoa,Oceania,Polynesia,APAC
+AT,Austria,Europe,Western Europe,EMEA
+AU,Australia,Oceania,Australia and New Zealand,APAC
+AW,Aruba,Americas,Latin America and the Caribbean,LATAM
+AX,Åland Islands,Europe,Northern Europe,EMEA
+AZ,Azerbaijan,Asia,Western Asia,EMEA
+BA,Bosnia,Europe,Southern Europe,EMEA
+BB,Barbados,Americas,Latin America and the Caribbean,LATAM
+BD,Bangladesh,Asia,Southern Asia,APAC
+BE,Belgium,Europe,Western Europe,EMEA
+BF,Burkina Faso,Africa,Sub-Saharan Africa,EMEA
+BG,Bulgaria,Europe,Eastern Europe,EMEA
+BH,Bahrain,Asia,Western Asia,EMEA
+BI,Burundi,Africa,Sub-Saharan Africa,EMEA
+BJ,Benin,Africa,Sub-Saharan Africa,EMEA
+BL,St. Barthélemy,Americas,Latin America and the Caribbean,LATAM
+BM,Bermuda,Americas,Northern America,NAMER
+BN,Brunei,Asia,South-eastern Asia,APAC
+BO,Bolivia,Americas,Latin America and the Caribbean,LATAM
+BQ,Caribbean Netherlands,Americas,Latin America and the Caribbean,LATAM
+BR,Brazil,Americas,Latin America and the Caribbean,LATAM
+BS,Bahamas,Americas,Latin America and the Caribbean,LATAM
+BT,Bhutan,Asia,Southern Asia,APAC
+BV,Bouvet Island,Americas,Latin America and the Caribbean,LATAM
+BW,Botswana,Africa,Sub-Saharan Africa,EMEA
+BY,Belarus,Europe,Eastern Europe,EMEA
+BZ,Belize,Americas,Latin America and the Caribbean,LATAM
+CA,Canada,Americas,Northern America,NAMER
+CC,Cocos Islands,Oceania,Australia and New Zealand,APAC
+CD,Congo - Kinshasa,Africa,Sub-Saharan Africa,EMEA
+CF,Central African Republic,Africa,Sub-Saharan Africa,EMEA
+CG,Congo - Brazzaville,Africa,Sub-Saharan Africa,EMEA
+CH,Switzerland,Europe,Western Europe,EMEA
+CI,Côte d’Ivoire,Africa,Sub-Saharan Africa,EMEA
+CK,Cook Islands,Oceania,Polynesia,APAC
+CL,Chile,Americas,Latin America and the Caribbean,LATAM
+CM,Cameroon,Africa,Sub-Saharan Africa,EMEA
+CN,China,Asia,Eastern Asia,APAC
+CO,Colombia,Americas,Latin America and the Caribbean,LATAM
+CR,Costa Rica,Americas,Latin America and the Caribbean,LATAM
+CU,Cuba,Americas,Latin America and the Caribbean,LATAM
+CV,Cape Verde,Africa,Sub-Saharan Africa,EMEA
+CW,Curaçao,Americas,Latin America and the Caribbean,LATAM
+CX,Christmas Island,Oceania,Australia and New Zealand,APAC
+CY,Cyprus,Asia,Western Asia,EMEA
+CZ,Czechia,Europe,Eastern Europe,EMEA
+DE,Germany,Europe,Western Europe,EMEA
+DJ,Djibouti,Africa,Sub-Saharan Africa,EMEA
+DK,Denmark,Europe,Northern Europe,EMEA
+DM,Dominica,Americas,Latin America and the Caribbean,LATAM
+DO,Dominican Republic,Americas,Latin America and the Caribbean,LATAM
+DZ,Algeria,Africa,Northern Africa,EMEA
+EC,Ecuador,Americas,Latin America and the Caribbean,LATAM
+EE,Estonia,Europe,Northern Europe,EMEA
+EG,Egypt,Africa,Northern Africa,EMEA
+EH,Western Sahara,Africa,Northern Africa,EMEA
+ER,Eritrea,Africa,Sub-Saharan Africa,EMEA
+ES,Spain,Europe,Southern Europe,EMEA
+ET,Ethiopia,Africa,Sub-Saharan Africa,EMEA
+FI,Finland,Europe,Northern Europe,EMEA
+FJ,Fiji,Oceania,Melanesia,APAC
+FK,Falkland Islands,Americas,Latin America and the Caribbean,LATAM
+FM,Micronesia,Oceania,Micronesia,APAC
+FO,Faroe Islands,Europe,Northern Europe,EMEA
+FR,France,Europe,Western Europe,EMEA
+GA,Gabon,Africa,Sub-Saharan Africa,EMEA
+GB,United Kingdom,Europe,Northern Europe,EMEA
+GD,Grenada,Americas,Latin America and the Caribbean,LATAM
+GE,Georgia,Asia,Western Asia,EMEA
+GF,French Guiana,Americas,Latin America and the Caribbean,LATAM
+GG,Guernsey,Europe,Northern Europe,EMEA
+GH,Ghana,Africa,Sub-Saharan Africa,EMEA
+GI,Gibraltar,Europe,Southern Europe,EMEA
+GL,Greenland,Americas,Northern America,NAMER
+GM,Gambia,Africa,Sub-Saharan Africa,EMEA
+GN,Guinea,Africa,Sub-Saharan Africa,EMEA
+GP,Guadeloupe,Americas,Latin America and the Caribbean,LATAM
+GQ,Equatorial Guinea,Africa,Sub-Saharan Africa,EMEA
+GR,Greece,Europe,Southern Europe,EMEA
+GS,South Georgia & South Sandwich Islands,Americas,Latin America and the Caribbean,LATAM
+GT,Guatemala,Americas,Latin America and the Caribbean,LATAM
+GU,Guam,Oceania,Micronesia,APAC
+GW,Guinea-Bissau,Africa,Sub-Saharan Africa,EMEA
+GY,Guyana,Americas,Latin America and the Caribbean,LATAM
+HK,Hong Kong,Asia,Eastern Asia,APAC
+HM,Heard & McDonald Islands,Oceania,Australia and New Zealand,APAC
+HN,Honduras,Americas,Latin America and the Caribbean,LATAM
+HR,Croatia,Europe,Southern Europe,EMEA
+HT,Haiti,Americas,Latin America and the Caribbean,LATAM
+HU,Hungary,Europe,Eastern Europe,EMEA
+ID,Indonesia,Asia,South-eastern Asia,APAC
+IE,Ireland,Europe,Northern Europe,EMEA
+IL,Israel,Asia,Western Asia,EMEA
+IM,Isle of Man,Europe,Northern Europe,EMEA
+IN,India,Asia,Southern Asia,APAC
+IO,British Indian Ocean Territory,Africa,Sub-Saharan Africa,EMEA
+IQ,Iraq,Asia,Western Asia,EMEA
+IR,Iran,Asia,Southern Asia,APAC
+IS,Iceland,Europe,Northern Europe,EMEA
+IT,Italy,Europe,Southern Europe,EMEA
+JE,Jersey,Europe,Northern Europe,EMEA
+JM,Jamaica,Americas,Latin America and the Caribbean,LATAM
+JO,Jordan,Asia,Western Asia,EMEA
+JP,Japan,Asia,Eastern Asia,APAC
+KE,Kenya,Africa,Sub-Saharan Africa,EMEA
+KG,Kyrgyzstan,Asia,Central Asia,APAC
+KH,Cambodia,Asia,South-eastern Asia,APAC
+KI,Kiribati,Oceania,Micronesia,APAC
+KM,Comoros,Africa,Sub-Saharan Africa,EMEA
+KN,St. Kitts & Nevis,Americas,Latin America and the Caribbean,LATAM
+KP,North Korea,Asia,Eastern Asia,APAC
+KR,South Korea,Asia,Eastern Asia,APAC
+KW,Kuwait,Asia,Western Asia,EMEA
+KY,Cayman Islands,Americas,Latin America and the Caribbean,LATAM
+KZ,Kazakhstan,Asia,Central Asia,APAC
+LA,Laos,Asia,South-eastern Asia,APAC
+LB,Lebanon,Asia,Western Asia,EMEA
+LC,St. Lucia,Americas,Latin America and the Caribbean,LATAM
+LI,Liechtenstein,Europe,Western Europe,EMEA
+LK,Sri Lanka,Asia,Southern Asia,APAC
+LR,Liberia,Africa,Sub-Saharan Africa,EMEA
+LS,Lesotho,Africa,Sub-Saharan Africa,EMEA
+LT,Lithuania,Europe,Northern Europe,EMEA
+LU,Luxembourg,Europe,Western Europe,EMEA
+LV,Latvia,Europe,Northern Europe,EMEA
+LY,Libya,Africa,Northern Africa,EMEA
+MA,Morocco,Africa,Northern Africa,EMEA
+MC,Monaco,Europe,Western Europe,EMEA
+MD,Moldova,Europe,Eastern Europe,EMEA
+ME,Montenegro,Europe,Southern Europe,EMEA
+MF,St. Martin,Americas,Latin America and the Caribbean,LATAM
+MG,Madagascar,Africa,Sub-Saharan Africa,EMEA
+MH,Marshall Islands,Oceania,Micronesia,APAC
+MK,North Macedonia,Europe,Southern Europe,EMEA
+ML,Mali,Africa,Sub-Saharan Africa,EMEA
+MM,Myanmar,Asia,South-eastern Asia,APAC
+MN,Mongolia,Asia,Eastern Asia,APAC
+MO,Macao,Asia,Eastern Asia,APAC
+MP,Northern Mariana Islands,Oceania,Micronesia,APAC
+MQ,Martinique,Americas,Latin America and the Caribbean,LATAM
+MR,Mauritania,Africa,Sub-Saharan Africa,EMEA
+MS,Montserrat,Americas,Latin America and the Caribbean,LATAM
+MT,Malta,Europe,Southern Europe,EMEA
+MU,Mauritius,Africa,Sub-Saharan Africa,EMEA
+MV,Maldives,Asia,Southern Asia,APAC
+MW,Malawi,Africa,Sub-Saharan Africa,EMEA
+MX,Mexico,Americas,Latin America and the Caribbean,LATAM
+MY,Malaysia,Asia,South-eastern Asia,APAC
+MZ,Mozambique,Africa,Sub-Saharan Africa,EMEA
+NA,Namibia,Africa,Sub-Saharan Africa,EMEA
+NC,New Caledonia,Oceania,Melanesia,APAC
+NE,Niger,Africa,Sub-Saharan Africa,EMEA
+NF,Norfolk Island,Oceania,Australia and New Zealand,APAC
+NG,Nigeria,Africa,Sub-Saharan Africa,EMEA
+NI,Nicaragua,Americas,Latin America and the Caribbean,LATAM
+NL,Netherlands,Europe,Western Europe,EMEA
+NO,Norway,Europe,Northern Europe,EMEA
+NP,Nepal,Asia,Southern Asia,APAC
+NR,Nauru,Oceania,Micronesia,APAC
+NU,Niue,Oceania,Polynesia,APAC
+NZ,New Zealand,Oceania,Australia and New Zealand,APAC
+OM,Oman,Asia,Western Asia,EMEA
+PA,Panama,Americas,Latin America and the Caribbean,LATAM
+PE,Peru,Americas,Latin America and the Caribbean,LATAM
+PF,French Polynesia,Oceania,Polynesia,APAC
+PG,Papua New Guinea,Oceania,Melanesia,APAC
+PH,Philippines,Asia,South-eastern Asia,APAC
+PK,Pakistan,Asia,Southern Asia,APAC
+PL,Poland,Europe,Eastern Europe,EMEA
+PM,St. Pierre & Miquelon,Americas,Northern America,NAMER
+PN,Pitcairn,Oceania,Polynesia,APAC
+PR,Puerto Rico,Americas,Latin America and the Caribbean,LATAM
+PS,Palestine,Asia,Western Asia,EMEA
+PT,Portugal,Europe,Southern Europe,EMEA
+PW,Palau,Oceania,Micronesia,APAC
+PY,Paraguay,Americas,Latin America and the Caribbean,LATAM
+QA,Qatar,Asia,Western Asia,EMEA
+RE,Réunion,Africa,Sub-Saharan Africa,EMEA
+RO,Romania,Europe,Eastern Europe,EMEA
+RS,Serbia,Europe,Southern Europe,EMEA
+RU,Russia,Europe,Eastern Europe,EMEA
+RW,Rwanda,Africa,Sub-Saharan Africa,EMEA
+SA,Saudi Arabia,Asia,Western Asia,EMEA
+SB,Solomon Islands,Oceania,Melanesia,APAC
+SC,Seychelles,Africa,Sub-Saharan Africa,EMEA
+SD,Sudan,Africa,Northern Africa,EMEA
+SE,Sweden,Europe,Northern Europe,EMEA
+SG,Singapore,Asia,South-eastern Asia,APAC
+SH,St. Helena,Africa,Sub-Saharan Africa,EMEA
+SI,Slovenia,Europe,Southern Europe,EMEA
+SJ,Svalbard & Jan Mayen,Europe,Northern Europe,EMEA
+SK,Slovakia,Europe,Eastern Europe,EMEA
+SL,Sierra Leone,Africa,Sub-Saharan Africa,EMEA
+SM,San Marino,Europe,Southern Europe,EMEA
+SN,Senegal,Africa,Sub-Saharan Africa,EMEA
+SO,Somalia,Africa,Sub-Saharan Africa,EMEA
+SR,Suriname,Americas,Latin America and the Caribbean,LATAM
+SS,South Sudan,Africa,Sub-Saharan Africa,EMEA
+ST,São Tomé & Príncipe,Africa,Sub-Saharan Africa,EMEA
+SV,El Salvador,Americas,Latin America and the Caribbean,LATAM
+SX,Sint Maarten,Americas,Latin America and the Caribbean,LATAM
+SY,Syria,Asia,Western Asia,EMEA
+SZ,Eswatini,Africa,Sub-Saharan Africa,EMEA
+TC,Turks & Caicos Islands,Americas,Latin America and the Caribbean,LATAM
+TD,Chad,Africa,Sub-Saharan Africa,EMEA
+TF,French Southern Territories,Africa,Sub-Saharan Africa,EMEA
+TG,Togo,Africa,Sub-Saharan Africa,EMEA
+TH,Thailand,Asia,South-eastern Asia,APAC
+TJ,Tajikistan,Asia,Central Asia,APAC
+TK,Tokelau,Oceania,Polynesia,APAC
+TL,Timor-Leste,Asia,South-eastern Asia,APAC
+TM,Turkmenistan,Asia,Central Asia,APAC
+TN,Tunisia,Africa,Northern Africa,EMEA
+TO,Tonga,Oceania,Polynesia,APAC
+TR,Türkiye,Asia,Western Asia,EMEA
+TT,Trinidad & Tobago,Americas,Latin America and the Caribbean,LATAM
+TV,Tuvalu,Oceania,Polynesia,APAC
+TW,Taiwan,Asia,Eastern Asia,APAC
+TZ,Tanzania,Africa,Sub-Saharan Africa,EMEA
+UA,Ukraine,Europe,Eastern Europe,EMEA
+UG,Uganda,Africa,Sub-Saharan Africa,EMEA
+UM,U.S. Outlying Islands,Oceania,Micronesia,APAC
+US,United States,Americas,Northern America,NAMER
+UY,Uruguay,Americas,Latin America and the Caribbean,LATAM
+UZ,Uzbekistan,Asia,Central Asia,APAC
+VA,Vatican City,Europe,Southern Europe,EMEA
+VC,St. Vincent & Grenadines,Americas,Latin America and the Caribbean,LATAM
+VE,Venezuela,Americas,Latin America and the Caribbean,LATAM
+VG,British Virgin Islands,Americas,Latin America and the Caribbean,LATAM
+VI,U.S. Virgin Islands,Americas,Latin America and the Caribbean,LATAM
+VN,Vietnam,Asia,South-eastern Asia,APAC
+VU,Vanuatu,Oceania,Melanesia,APAC
+WF,Wallis & Futuna,Oceania,Polynesia,APAC
+WS,Samoa,Oceania,Polynesia,APAC
+XK,Kosovo,Europe,Southern Europe,EMEA
+YE,Yemen,Asia,Western Asia,EMEA
+YT,Mayotte,Africa,Sub-Saharan Africa,EMEA
+ZA,South Africa,Africa,Sub-Saharan Africa,EMEA
+ZM,Zambia,Africa,Sub-Saharan Africa,EMEA
+ZW,Zimbabwe,Africa,Sub-Saharan Africa,EMEA
