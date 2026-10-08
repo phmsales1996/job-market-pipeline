@@ -13,6 +13,11 @@ each loaded and quality-checked nightly by its own Airflow DAG; ~4,500 company b
 that stacks all six, and the first marts - a small star schema and a `remote_jobs` table.
 The reasoning behind the main choices is in [docs/decisions](docs/decisions/README.md).
 
+**Live dashboard:** <https://phmsales1996.github.io/job-market-pipeline/> - open remote
+postings by region, country, company and employment type, a searchable list of the latest
+ones, and the pipeline's own numbers. It is written as code ([dashboard/](dashboard/README.md))
+and built from the marts.
+
 ## Architecture
 
 ```mermaid
@@ -77,6 +82,8 @@ each source only supplies what genuinely differs.
      posting and adds the company name from the registry.
    - **Marts**: `fct_job_postings` and `dim_country` (a small star schema, with country names
      and regions), and `remote_jobs`, a wide table of remote postings ready to query.
+6. **Show** (`dashboard/`): a dashboard written as one text file of queries and charts, built
+   into a static page from the marts.
 
    About 80 tests run with every build: unique keys, accepted values, values a seed has never
    seen, seed coverage, leftover markup. See [dbt/README.md](dbt/README.md).
@@ -160,6 +167,7 @@ dbt/                       dbt project (named job_market)
                            salary interval, employment type, US states)
   macros/                  html_to_text
   tests/                   singular tests (unmapped values, seed coverage, leftover HTML)
+dashboard/                 the dashboard as code (Quarto): index.qmd holds the queries and charts
 docs/decisions/            design decisions, one short record each
 scripts/generate_country_seed.py   builds both country seeds from observed values + ISO 3166
 ```
@@ -234,7 +242,8 @@ python -m ingestion.checks greenhouse $D   # checks and fill rates
 - [ ] dbt on a schedule in Airflow, triggered when ingestion finishes; alerts routed
 - [ ] Company dimension, with history
 - [ ] History of postings (daily snapshot) and trend marts
-- [ ] Dashboard on the marts
+- [x] Dashboard on the marts, written as code and published as a static page
+- [ ] Rebuild and publish the dashboard nightly, after the models
 - [ ] Job family, seniority and skills, by rules first and then a language model, with an
       evaluation set
 - [ ] dbt in CI; separate dev and prod environments; infrastructure as code
