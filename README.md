@@ -8,14 +8,16 @@ A batch data pipeline that collects public job postings from applicant-tracking 
 transforms them with dbt into one canonical model.
 
 **Status:** six sources - Greenhouse, Lever, Ashby, Recruitee, Teamtailor and Workable -
-each loaded and quality-checked nightly by its own Airflow DAG; ~4,500 company boards. dbt
-transformation layer in progress (staging for two of the six sources).
+each loaded and quality-checked nightly by its own Airflow DAG; ~4,500 company boards and
+~120,000 open postings. dbt turns them into one model: a staging model per source, one model
+that stacks all six, and the first marts - a small star schema and a `remote_jobs` table.
+The reasoning behind the main choices is in [docs/decisions](docs/decisions/README.md).
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-    SRC["<b>6 ATS sources</b><br/>Greenhouse · Lever · Ashby · Recruitee<br/>Teamtailor (RSS/XML) · Workable (list + detail)"]
+    SRC["<b>6 ATS sources</b><br/>Greenhouse · Lever · Ashby · Recruitee<br/>Teamtailor (RSS/XML) · Workable"]
     REG[("companies registry<br/>~4,500 boards")]
 
     subgraph ING["Extract and load: Python, one Airflow DAG per source, nightly"]
@@ -30,21 +32,23 @@ flowchart TB
 
     subgraph DBT["Transform: dbt project job_market"]
         direction LR
-        SEEDS[("seeds<br/>country, workplace,<br/>salary interval")] --> STG["staging<br/>stg_&lt;source&gt;_postings"]
-        STG --> INT["intermediate<br/>all sources stacked<br/>(planned)"]
-        INT --> MRT["marts<br/>star schema + remote_jobs<br/>(planned)"]
+        SEEDS[("seeds<br/>country, workplace, salary interval,<br/>employment type, US states")] --> STG["staging<br/>stg_&lt;source&gt;_postings<br/>one per source"]
+        STG --> INT["intermediate<br/>int_postings_unioned<br/>all sources stacked"]
+        INT --> MRT["marts<br/>fct_job_postings + dim_country<br/>remote_jobs"]
     end
 
     SRC --> EX
     REG -->|which boards| EX
     RAW -->|"source() + freshness"| STG
+    REG -->|company name| INT
     GIT["GitHub: PR, CI, deploy on merge"] -.-> ING
 ```
 
 **Two halves.** The **Python + Airflow** half extracts and loads: every source's response is
 kept untouched in GCS, then flattened into a raw BigQuery table per source, each in its own
 vocabulary. The **dbt** half transforms: staging models translate each source into canonical
-names and values (via seed tables), so they can be stacked into one model of the job market.
+names and values (via seed tables); one intermediate model stacks them into a single table
+of the job market; marts serve it.
 
 The same three steps run for every source. What is shared lives in one module per step;
 each source only supplies what genuinely differs.
@@ -55,22 +59,36 @@ each source only supplies what genuinely differs.
    `<source>/ingest_date=YYYY-MM-DD/<board>/<time>.json`. A source module is one fetch
    function - retries, landing, progress and the failure summary are shared.
 2. **Load** (`ingestion/loader.py` + `ingestion/<source>_loader.py`): lists everything that
-   landed for the day, flattens each job with the source's `transform`, stamps the pipeline's
-   own timestamps, and batch-loads the rows into a staging table.
+   landed for the day, flattens each job with the source's `transform`, stamps what only the
+   pipeline knows - its timestamps and the board the file came from - and batch-loads the rows
+   into a staging table.
 3. **Merge** (`sql/merge_<source>_postings.sql`): upserts staging into the final table by
    job `id`.
 4. **Check** (`ingestion/checks.py`): blocking checks (every board landed or failed
    explainably, staging rebuilt from today's files, unique keys, merge applied) and a fill
    rate per column, with the column list read from `INFORMATION_SCHEMA`.
-5. **Transform** (`dbt/`, the dbt project): one staging model per source renames columns to the
-   canonical model and translates each source's vocabulary (country names, remote words, pay
-   periods) through seed tables; HTML descriptions become plain text through a tested macro.
-   Tests (unique keys, accepted values, unmapped values, seed coverage) run with every build.
-   Next: stack the six sources into one model, then marts. See [dbt/README.md](dbt/README.md).
+5. **Transform** (`dbt/`, the dbt project), in three layers:
+   - **Staging**, one model per source: renames columns to the canonical model and translates
+     each source's vocabulary (country names, remote words, pay periods, employment types)
+     through seed tables. HTML descriptions become plain text through a tested macro. Where a
+     source has no field - the largest one has no country and no workplace type - the value
+     is derived from free text under a narrow, documented rule, or left unknown.
+   - **Intermediate**: `int_postings_unioned` stacks the six staging models into one row per
+     posting and adds the company name from the registry.
+   - **Marts**: `fct_job_postings` and `dim_country` (a small star schema, with country names
+     and regions), and `remote_jobs`, a wide table of remote postings ready to query.
+
+   About 80 tests run with every build: unique keys, accepted values, values a seed has never
+   seen, seed coverage, leftover markup. See [dbt/README.md](dbt/README.md).
 
 
 
 ## Design decisions
+
+The decisions below concern the extract-and-load half. The modelling decisions - how each
+source's words are translated, when a value is derived and when it is left unknown, why the
+marts are shaped as they are - are written up one per page in
+[docs/decisions](docs/decisions/README.md).
 
 - **ELT with an untouched landing zone.** Raw API responses are stored byte for byte,
 before any parsing, so anything downstream can be rebuilt from them. A lifecycle rule
@@ -100,11 +118,11 @@ parameters; behaviour that differs (how to fetch, how to flatten) is passed in a
 Adding Ashby took one fetch function, one `transform`, two DDL files and a MERGE column list.
 - **The landing zone keeps each source's own format.** JSON lands as `.json`, Teamtailor's
 RSS as `.xml` - the extension and content type are a parameter of the shared landing code.
-- **Incremental where the source forces it.** Workable's job list has no descriptions; one
-request per job every night would be ~29k requests. The extract asks BigQuery which jobs it
-already holds and details only the rest (at most 3,000 per run, refreshed after 30 days). The
-MERGE updates description columns only from rows that carried a detail, so a quiet night
-never blanks them.
+- **Change the request before scheduling around a limit.** Workable's job list had no
+descriptions, so the first design fetched one detail per job, incrementally. Its rate limit
+allowed about 300 details per window against about 660 new postings a night, which no schedule
+can catch up with. The list request returns the description when asked, so the detail calls
+were switched off ([decision 0009](docs/decisions/0009-workable-descriptions-from-the-list.md)).
 - **Raw tables keep each source's own vocabulary.** Lever says `Full-Time`, Ashby
 `FullTime`; Lever's country is `US`, Ashby's `USA`. Values are stored as published and
 mapped once, downstream, in the canonical model - documented per column in the DDL.
@@ -135,11 +153,15 @@ sql/
   merge_<source>_postings.sql   MERGE template, run by the loader
 tests/                     pure unit tests (no mocks) for transforms and check logic
 dbt/                       dbt project (named job_market)
-  models/staging/          stg_<source>_postings + sources, tests and docs in YAML
-  seeds/                   mapping tables (country, workplace, salary interval)
+  models/staging/          stg_<source>_postings (six) + sources, tests and docs in YAML
+  models/intermediate/     int_postings_unioned: all sources stacked, company name joined
+  models/marts/            dim_country, fct_job_postings, remote_jobs
+  seeds/                   mapping tables (country spellings, countries and regions, workplace,
+                           salary interval, employment type, US states)
   macros/                  html_to_text
   tests/                   singular tests (unmapped values, seed coverage, leftover HTML)
-scripts/generate_country_seed.py   builds the country seed from observed values + ISO 3166
+docs/decisions/            design decisions, one short record each
+scripts/generate_country_seed.py   builds both country seeds from observed values + ISO 3166
 ```
 
 
@@ -202,14 +224,21 @@ python -m ingestion.checks greenhouse $D   # checks and fill rates
       sharing extract, load and checks; board lists grown from a web-crawl index, validated first
 - [x] Fifth source: Teamtailor, an RSS/XML feed - landed as `.xml`, parsed with namespaces,
       with a tripwire against the feed's hidden 100-item default cap
-- [x] Sixth source: Workable - incremental extraction (descriptions need one request per job,
-      so only jobs not yet held are detailed, capped per run, with a circuit breaker for the
-      API's rate limit)
-- [~] dbt: canonical model across sources — project, sources with freshness, seeds, an
-      HTML-to-text macro and staging for Lever and Ashby done; four staging models, the
-      unioned model and the marts (a star schema + a wide `remote_jobs` table) to go
-- [ ] Separate dev and prod environments
-- [ ] Serving layer / dashboard
+- [x] Sixth source: Workable - first with an incremental detail fetch, then, once its rate
+      limit proved impossible to keep up with, with descriptions taken from the list request
+- [x] Every posting tied to its company (the board identifier, stamped by the loader)
+- [x] dbt: staging for all six sources, with seeds, an HTML-to-text macro and ~80 tests
+- [x] dbt: one model of every posting (`int_postings_unioned`)
+- [x] dbt: first marts - `fct_job_postings`, `dim_country` with regions, `remote_jobs`
+- [ ] Open or closed: whether a posting was seen in its source's latest run
+- [ ] dbt on a schedule in Airflow, triggered when ingestion finishes; alerts routed
+- [ ] Company dimension, with history
+- [ ] History of postings (daily snapshot) and trend marts
+- [ ] Dashboard on the marts
+- [ ] Job family, seniority and skills, by rules first and then a language model, with an
+      evaluation set
+- [ ] dbt in CI; separate dev and prod environments; infrastructure as code
+- [ ] Port the dbt project to a second warehouse
 
 
 
@@ -221,6 +250,15 @@ python -m ingestion.checks greenhouse $D   # checks and fill rates
 as a fill rate per column on every run instead of blocking the load.
 - **Landed files are deleted after 7 days** by a lifecycle rule, so a rebuild can only reach
 back that far.
+- **No history yet.** The raw tables hold each posting's current state, so a change to a
+posting overwrites what was there, and nothing records how many postings were open on a past
+day.
+- **The dbt models are built by hand.** Nothing schedules them, and CI does not build them;
+it runs the Python tests, the DAG import check and the type check.
+- **One environment.** The dataset is named in dbt's source file and in the DDL files; there
+is no separate production target, and the cloud resources were created by hand.
+- **Company names are mostly derived from the board identifier** (`acme-corp` becomes
+"Acme Corp"), except where the source's API reports a name.
 - **Failures are logged, not pushed.** A failure callback writes a structured alert line with
 everything needed to act (and `RUNBOOK.md` says what to do), but nothing sends it anywhere yet;
 in a team this would post to a chat channel.
