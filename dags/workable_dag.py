@@ -1,6 +1,7 @@
 import pendulum
 from airflow.sdk import dag, task
 from ingestion import workable, workable_loader, checks, alerts
+from ingestion.assets import INGESTION_FINISHED
 from datetime import timedelta
 
 @dag(
@@ -33,11 +34,16 @@ def workable_ingestion():
         checks.run_checks("workable", ds, summary=load_summary,
                                      extract_summary=extract_summary)
 
+    @task(outlets=[INGESTION_FINISHED["workable"]])
+    def finished():
+        """Announces that tonight's Workable run is over, whether or not it succeeded."""
+
     extract_task = extract()
     load_task = load()
     extract_task >> load_task        # ordering only: load reads GCS, not the summary
     # Passing the values also creates load -> check and extract -> check. By keyword: two
     # dicts of similar shape are easy to swap positionally, and nothing would complain.
-    check(load_summary=load_task, extract_summary=extract_task)
+    check_task = check(load_summary=load_task, extract_summary=extract_task)
+    check_task >> finished().as_teardown()
 
 workable_ingestion()
