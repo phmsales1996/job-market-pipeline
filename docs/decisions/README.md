@@ -21,3 +21,6 @@ They are written after the fact, from the working notes, and kept short on purpo
 | [0011](0011-layers-and-the-union.md) | Translate per source, combine once | dbt |
 | [0012](0012-star-schema-and-a-wide-mart.md) | A small star schema, and a wide table for using it | modelling |
 | [0013](0013-warning-or-error.md) | When a test warns and when it fails | data quality |
+| [0014](0014-open-or-closed.md) | Open or closed is worked out from absence, per source | modelling |
+| [0015](0015-transform-when-ingestion-is-over.md) | The transform runs when ingestion is over, not at a time | orchestration |
+| [0016](0016-dashboard-as-code.md) | The dashboard is code, built into a static page | serving |
