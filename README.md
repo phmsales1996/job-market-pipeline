@@ -46,6 +46,8 @@ flowchart TB
     REG -->|which boards| EX
     RAW -->|"source() + freshness"| STG
     REG -->|company name| INT
+    CK -->|"run over (asset), all six"| STG
+    MRT --> DASH["dashboard<br/>static page"]
     GIT["GitHub: PR, CI, deploy on merge"] -.-> ING
 ```
 
@@ -207,6 +209,9 @@ python -m ingestion.checks greenhouse $D   # checks and fill rates
 
 ## Operations
 
+- **Transform:** `dbt_transform` has no clock schedule. Each ingestion DAG ends with a task that
+  announces its run is over, whether it succeeded or failed, and `dbt_transform` runs
+  `dbt build` once all six have announced (Airflow assets).
 - **Schedule:** one DAG per source, staggered so they never compete for the host:
   `greenhouse_ingestion` 01:30, `lever_ingestion` 02:30, `ashby_ingestion` 03:30,
   `recruitee_ingestion` 04:30, `teamtailor_ingestion` 05:30, `workable_ingestion` 06:30 UTC, all
@@ -238,8 +243,10 @@ python -m ingestion.checks greenhouse $D   # checks and fill rates
 - [x] dbt: staging for all six sources, with seeds, an HTML-to-text macro and ~80 tests
 - [x] dbt: one model of every posting (`int_postings_unioned`)
 - [x] dbt: first marts - `fct_job_postings`, `dim_country` with regions, `remote_jobs`
-- [ ] Open or closed: whether a posting was seen in its source's latest run
-- [ ] dbt on a schedule in Airflow, triggered when ingestion finishes; alerts routed
+- [x] Open or closed: whether a posting was seen in its source's latest run
+- [x] dbt on Airflow: the models rebuild and their tests run when the six ingestion runs are
+      over, triggered by assets rather than a clock time
+- [ ] Alerts routed to a channel, including "nothing ran"
 - [ ] Company dimension, with history
 - [ ] History of postings (daily snapshot) and trend marts
 - [x] Dashboard on the marts, written as code and published as a static page
@@ -262,8 +269,10 @@ back that far.
 - **No history yet.** The raw tables hold each posting's current state, so a change to a
 posting overwrites what was there, and nothing records how many postings were open on a past
 day.
-- **The dbt models are built by hand.** Nothing schedules them, and CI does not build them;
-it runs the Python tests, the DAG import check and the type check.
+- **CI does not build the dbt models.** It runs the Python tests, the DAG import check and the
+type check. The models are rebuilt and tested nightly on the Airflow host instead.
+- **A source DAG that never runs blocks the transform silently.** The transform waits for all
+six sources to announce that their run is over; a paused DAG never does.
 - **One environment.** The dataset is named in dbt's source file and in the DDL files; there
 is no separate production target, and the cloud resources were created by hand.
 - **Company names are mostly derived from the board identifier** (`acme-corp` becomes
