@@ -246,7 +246,7 @@ python -m ingestion.checks greenhouse $D   # checks and fill rates
 - [x] Open or closed: whether a posting was seen in its source's latest run
 - [x] dbt on Airflow: the models rebuild and their tests run when the six ingestion runs are
       over, triggered by assets rather than a clock time
-- [ ] Alerts routed to a channel, including "nothing ran"
+- [x] Alerts by email, including "nothing ran" (a heartbeat, [0017](docs/decisions/0017-alerts-by-email-through-a-heartbeat.md))
 - [ ] Company dimension, with history
 - [ ] History of postings (daily snapshot) and trend marts
 - [x] Dashboard on the marts, written as code and published as a static page
@@ -277,9 +277,6 @@ six sources to announce that their run is over; a paused DAG never does.
 is no separate production target, and the cloud resources were created by hand.
 - **Company names are mostly derived from the board identifier** (`acme-corp` becomes
 "Acme Corp"), except where the source's API reports a name.
-- **Failures are logged, not pushed.** A failure callback writes a structured alert line with
-everything needed to act (and `RUNBOOK.md` says what to do), but nothing sends it anywhere yet;
-in a team this would post to a chat channel.
 
 
 

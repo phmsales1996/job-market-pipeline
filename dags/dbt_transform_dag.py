@@ -20,6 +20,11 @@ def dbt_transform():
     def dbt_build():
          return "dbt build"
 
-    dbt_build()
+    @task
+    def heartbeat():
+        # Only after a green build: no ping by 26 h after the last one means an email.
+        alerts.ping()
+
+    dbt_build() >> heartbeat()
 
 dbt_transform()
