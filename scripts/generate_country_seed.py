@@ -178,7 +178,11 @@ def main() -> None:
     lookup = iso_lookup(iso)
     lookup.update({k.lower(): v for k, v in ALIASES.items()})
     rows, unmatched = [], []
-    for value in sorted(observed_values()):
+    # The seed only grows: a value seen once stays known, even when no posting sends it today,
+    # so its return doesn't fail the "value the seed has never seen" tests again.
+    with SEED_PATH.open(newline="") as f:
+        seeded = {row["country_raw"] for row in csv.DictReader(f)}
+    for value in sorted(observed_values() | seeded):
         code = lookup.get(value.lower())
         if code:
             rows.append((value, code))
